@@ -1,11 +1,14 @@
 
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { SignedIn, SignedOut } from "@clerk/nextjs";
-
+import { storage } from "@/utils/firebase";
+import { ref } from "firebase/storage";
 export default async function Home() {
   const { userId } = await auth();
   const user = await currentUser() as unknown as User;
   
+  const storageRef = ref(storage);
+ 
   return (
     <div className="p-6 lg:p-8">
       <SignedIn>
