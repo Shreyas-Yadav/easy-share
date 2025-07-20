@@ -3,10 +3,11 @@
 import { useState } from 'react'
 import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
 import { useUser } from '@clerk/nextjs'
+import Link from 'next/link'
 
 const navigation = [
-  { name: 'Create a Room', icon: '➕', href: '/create-room', current: false },
-  { name: 'Join a Room', icon: '🚪', href: '/join-room', current: false },
+  { name: 'Create a Room', icon: '➕', href: '/create', current: false },
+  { name: 'Join a Room', icon: '🚪', href: '/join', current: false },
 ]
 
 export default function Sidebar() {
@@ -103,7 +104,7 @@ function SidebarContent({ user }: { user: any }) {
             <ul role="list" className="-mx-2 space-y-1">
               {navigation.map((item) => (
                 <li key={item.name}>
-                  <a
+                  <Link
                     href={item.href}
                     className={`group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors duration-200 ${
                       item.current
@@ -113,7 +114,7 @@ function SidebarContent({ user }: { user: any }) {
                   >
                     <span className="text-lg">{item.icon}</span>
                     {item.name}
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>
