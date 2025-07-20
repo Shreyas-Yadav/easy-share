@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useSocket } from '../providers/SocketProvider';
 import type { Message } from '../../types/room';
 
 interface MessageListProps {
@@ -8,6 +9,7 @@ interface MessageListProps {
 }
 
 export default function MessageList({ messages }: MessageListProps) {
+  const { currentUserId } = useSocket();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -70,6 +72,8 @@ export default function MessageList({ messages }: MessageListProps) {
         const previousMessage = index > 0 ? messages[index - 1] : undefined;
         const showDateSeparator = shouldShowDateSeparator(message, previousMessage);
         const showUserInfo = shouldShowUserInfo(message, previousMessage);
+        const isOwnMessage = message.userId === currentUserId;
+        const isSystemMessage = message.type === 'system';
 
         return (
           <div key={message.id}>
@@ -82,70 +86,104 @@ export default function MessageList({ messages }: MessageListProps) {
               </div>
             )}
 
-            {/* Message */}
-            <div className={`flex items-start space-x-3 ${showUserInfo ? 'mt-4' : 'mt-1'}`}>
-              {/* Avatar */}
-              {showUserInfo ? (
-                <div className="flex-shrink-0">
-                  {message.type === 'system' ? (
-                    <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
-                      <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                  ) : message.userImage ? (
-                    <img
-                      src={message.userImage}
-                      alt={message.userName}
-                      className="h-8 w-8 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                      <span className="text-sm font-medium text-indigo-600">
-                        {message.userName.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                  )}
+            {/* System Message */}
+            {isSystemMessage ? (
+              <div className="flex justify-center my-2">
+                <div className="bg-blue-50 text-blue-800 text-sm px-3 py-1 rounded-full italic flex items-center space-x-2">
+                  <svg className="h-3 w-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>{message.content}</span>
                 </div>
-              ) : (
-                <div className="w-8" /> // Spacer for alignment
-              )}
-
-              {/* Message Content */}
-              <div className="flex-1 min-w-0">
-                {showUserInfo && (
-                  <div className="flex items-center space-x-2 mb-1">
-                    <span className={`text-sm font-medium ${
-                      message.type === 'system' ? 'text-blue-600' : 'text-gray-700'
-                    }`}>
-                      {message.userName}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      {formatTime(message.timestamp)}
-                    </span>
-                  </div>
-                )}
-
-                <div className={`rounded-lg px-3 py-2 max-w-4xl ${
-                  message.type === 'system' 
-                    ? 'bg-blue-50 text-blue-800 text-sm italic'
-                    : 'bg-gray-100 text-gray-800'
-                }`}>
-                  <p className="whitespace-pre-wrap break-words">{message.content}</p>
-                  {message.edited && (
-                    <span className="text-xs text-gray-500 ml-2">(edited)</span>
-                  )}
-                </div>
-
-                {!showUserInfo && (
-                  <div className="flex justify-end mt-1">
-                    <span className="text-xs text-gray-400">
-                      {formatTime(message.timestamp)}
-                    </span>
-                  </div>
-                )}
               </div>
-            </div>
+            ) : (
+              /* Regular Messages */
+              <div className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'} ${showUserInfo ? 'mt-4' : 'mt-1'}`}>
+                <div className={`flex max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl ${
+                  isOwnMessage ? 'flex-row-reverse space-x-reverse space-x-3' : 'space-x-3'
+                }`}>
+                  {/* Avatar */}
+                  {showUserInfo && !isOwnMessage && (
+                    <div className="flex-shrink-0">
+                      {message.userImage ? (
+                        <img
+                          src={message.userImage}
+                          alt={message.userName}
+                          className="h-8 w-8 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                          <span className="text-sm font-medium text-indigo-600">
+                            {message.userName.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {!showUserInfo && !isOwnMessage && <div className="w-8" />}
+
+                  {/* Message Content */}
+                  <div className={`flex-1 ${isOwnMessage ? 'text-right' : ''}`}>
+                    {showUserInfo && !isOwnMessage && (
+                      <div className="flex items-center space-x-2 mb-1">
+                        <span className="text-sm font-medium text-gray-700">
+                          {message.userName}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {formatTime(message.timestamp)}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className={`inline-block rounded-lg max-w-full ${
+                      message.type === 'image' 
+                        ? 'p-1' 
+                        : `px-3 py-2 ${isOwnMessage ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-800'}`
+                    }`}>
+                      {message.type === 'image' ? (
+                        <div className="space-y-2">
+                          <img 
+                            src={(message as any).imageUrl} 
+                            alt={(message as any).imageName}
+                            className="max-w-xs max-h-64 rounded-lg object-cover cursor-pointer"
+                            onClick={() => window.open((message as any).imageUrl, '_blank')}
+                          />
+                          <div className={`text-xs px-2 pb-1 ${
+                            isOwnMessage ? 'text-indigo-200' : 'text-gray-500'
+                          }`}>
+                            {(message as any).imageName}
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="whitespace-pre-wrap break-words text-left">{message.content}</p>
+                          {message.edited && (
+                            <span className={`text-xs ml-2 ${
+                              isOwnMessage ? 'text-indigo-200' : 'text-gray-500'
+                            }`}>
+                              (edited)
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {/* Timestamp for own messages or when user info is not shown */}
+                    {(isOwnMessage || !showUserInfo) && (
+                      <div className={`mt-1 ${isOwnMessage ? 'text-right' : 'text-left'}`}>
+                        <span className="text-xs text-gray-400">
+                          {formatTime(message.timestamp)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Own message avatar placeholder */}
+                  {showUserInfo && isOwnMessage && <div className="w-8" />}
+                </div>
+              </div>
+            )}
           </div>
         );
       })}

@@ -6,6 +6,7 @@ import type {
   RoomParticipant, 
   Message, 
   SystemMessage, 
+  ImageMessage,
   SocketData,
   ServerToClientEvents,
   ClientToServerEvents,
@@ -58,6 +59,30 @@ function createSystemMessage(
     type: 'system',
     systemType,
     timestamp: new Date(),
+  };
+}
+
+function createImageMessage(
+  roomId: string,
+  userId: string,
+  userName: string,
+  userImage: string,
+  imageUrl: string,
+  imageName: string,
+  imageSize: number
+): ImageMessage {
+  return {
+    id: Math.random().toString(36).substring(2, 9),
+    roomId,
+    userId,
+    userName,
+    userImage,
+    content: imageName, // Use image name as content
+    type: 'image',
+    timestamp: new Date(),
+    imageUrl,
+    imageSize,
+    imageName,
   };
 }
 
@@ -294,6 +319,38 @@ export async function GET(req: NextRequest) {
           console.log(`Message sent in room ${room.name}: ${data.content}`);
         } catch (error) {
           console.error('Error sending message:', error);
+        }
+      });
+
+      // Image upload
+      socket.on('image:upload', (data) => {
+        try {
+          const userData = socketUsers.get(socket.id);
+          if (!userData || userData.roomId !== data.roomId) {
+            return;
+          }
+
+          const room = rooms.get(data.roomId);
+          if (!room) return;
+
+          // In a real app, you'd upload to cloud storage (AWS S3, Cloudinary, etc.)
+          // For now, we'll just use the base64 data directly
+          const imageMessage = createImageMessage(
+            data.roomId,
+            userData.userId,
+            userData.userName,
+            userData.userImage,
+            data.image, // base64 image data
+            data.imageName,
+            data.imageSize
+          );
+
+          // Broadcast image message to all users in the room
+          io.to(data.roomId).emit('message:new', imageMessage);
+
+          console.log(`Image sent in room ${room.name}: ${data.imageName}`);
+        } catch (error) {
+          console.error('Error sending image:', error);
         }
       });
 

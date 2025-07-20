@@ -234,6 +234,22 @@ export function SocketProvider({ children }: SocketProviderProps) {
     });
   }, [socket, currentRoom]);
 
+  const sendImage = useCallback((file: File) => {
+    if (!socket || !currentRoom) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64Image = e.target?.result as string;
+      socket.emit('image:upload', {
+        roomId: currentRoom.id,
+        image: base64Image,
+        imageName: file.name,
+        imageSize: file.size
+      });
+    };
+    reader.readAsDataURL(file);
+  }, [socket, currentRoom]);
+
   const sendFile = useCallback((file: File) => {
     if (!socket || !currentRoom) return;
 
@@ -284,10 +300,12 @@ export function SocketProvider({ children }: SocketProviderProps) {
     isConnected,
     isLoading,
     error,
+    currentUserId: user?.id || null,
     createRoom,
     joinRoom,
     leaveRoom,
     sendMessage,
+    sendImage,
     sendFile,
     setTyping,
   };

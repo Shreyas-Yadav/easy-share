@@ -29,10 +29,18 @@ export interface Message {
   userName: string;
   userImage: string;
   content: string;
-  type: 'text' | 'file' | 'system';
+  type: 'text' | 'image' | 'file' | 'system';
   timestamp: Date;
   edited?: boolean;
   editedAt?: Date;
+}
+
+export interface ImageMessage extends Message {
+  type: 'image';
+  imageUrl: string;
+  imageSize: number;
+  imageName: string;
+  thumbnailUrl?: string;
 }
 
 export interface FileMessage extends Message {
@@ -72,6 +80,9 @@ export interface ServerToClientEvents {
   // File sharing events
   'file:uploaded': (message: FileMessage) => void;
   'file:progress': (data: { fileId: string; progress: number }) => void;
+  
+  // Image events
+  'image:uploaded': (message: ImageMessage) => void;
 }
 
 export interface ClientToServerEvents {
@@ -94,6 +105,9 @@ export interface ClientToServerEvents {
   
   // File sharing events
   'file:upload': (data: { roomId: string; file: ArrayBuffer; fileName: string; fileType: string }) => void;
+  
+  // Image events
+  'image:upload': (data: { roomId: string; image: string; imageName: string; imageSize: number }) => void;
 }
 
 export interface InterServerEvents {
@@ -117,12 +131,14 @@ export interface RoomContextType {
   isConnected: boolean;
   isLoading: boolean;
   error: string | null;
+  currentUserId: string | null;
   
   // Actions
   createRoom: (name: string, maxParticipants?: number) => Promise<void>;
   joinRoom: (code: string) => Promise<void>;
   leaveRoom: () => void;
   sendMessage: (content: string) => void;
+  sendImage: (file: File) => void;
   sendFile: (file: File) => void;
   setTyping: (isTyping: boolean) => void;
 }
