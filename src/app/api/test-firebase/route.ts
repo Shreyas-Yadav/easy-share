@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FirebaseStorageService } from '../../../services/FirebaseStorageService';
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     console.log('Testing Firebase Storage connectivity...');
 

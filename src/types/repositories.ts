@@ -39,7 +39,7 @@ export interface IUserSessionRepository {
 }
 
 export interface ICacheRepository {
-  set(key: string, value: any, ttlSeconds?: number): Promise<void>;
+  set(key: string, value: unknown, ttlSeconds?: number): Promise<void>;
   get<T>(key: string): Promise<T | null>;
   delete(key: string): Promise<void>;
   exists(key: string): Promise<boolean>;

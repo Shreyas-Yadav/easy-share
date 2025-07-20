@@ -7,7 +7,7 @@ export class RedisCacheRepository implements ICacheRepository {
   
   constructor(private readonly redis: Redis) {}
 
-  async set(key: string, value: any, ttlSeconds?: number): Promise<void> {
+  async set(key: string, value: unknown, ttlSeconds?: number): Promise<void> {
     try {
       const cacheKey = this.getCacheKey(key);
       const serializedValue = JSON.stringify(value);
@@ -86,7 +86,7 @@ export class RedisCacheRepository implements ICacheRepository {
   }
 
   // Additional utility methods
-  async setMultiple(entries: Record<string, any>, ttlSeconds?: number): Promise<void> {
+  async setMultiple(entries: Record<string, unknown>, ttlSeconds?: number): Promise<void> {
     try {
       // Use individual operations instead of pipeline to avoid parsing issues
       const promises = [];
@@ -160,7 +160,7 @@ export class RedisCacheRepository implements ICacheRepository {
     }
   }
 
-  async setIfNotExists(key: string, value: any, ttlSeconds?: number): Promise<boolean> {
+  async setIfNotExists(key: string, value: unknown, ttlSeconds?: number): Promise<boolean> {
     try {
       const cacheKey = this.getCacheKey(key);
       const serializedValue = JSON.stringify(value);

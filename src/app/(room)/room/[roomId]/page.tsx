@@ -44,7 +44,7 @@ export default function RoomPage() {
       <div className="min-h-screen bg-gray-200 flex items-center justify-center px-4">
         <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
           <h2 className="text-lg font-semibold text-gray-700 mb-2">Room not found</h2>
-          <p className="text-gray-600 mb-4">The room you're looking for doesn't exist or you're not a member.</p>
+          <p className="text-gray-600 mb-4">The room you&apos;re looking for doesn&apos;t exist or you&apos;re not a member.</p>
           <button
             onClick={() => router.push('/')}
             className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"

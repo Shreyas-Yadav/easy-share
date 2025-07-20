@@ -1,12 +1,7 @@
-import { NextRequest } from 'next/server';
 import { Server as SocketIOServer } from 'socket.io';
 import { createServer } from 'http';
 import type { 
-  Room, 
   RoomParticipant, 
-  Message, 
-  SystemMessage, 
-  ImageMessage,
   SocketData,
   ServerToClientEvents,
   ClientToServerEvents,
@@ -15,8 +10,7 @@ import type {
 import { redisdb } from '../../../utils/redisdb';
 import { RepositoryFactory } from '../../../factories/RepositoryFactory';
 import { ServiceFactory } from '../../../factories/ServiceFactory';
-import { createMessage, createSystemMessage, createImageMessage } from '../../../utils/createMessage';
-import { RepositoryError, NotFoundError, ConflictError } from '../../../types/repositories';
+import { NotFoundError, ConflictError } from '../../../types/repositories';
 
 // Initialize factories and services
 const repositoryFactory = RepositoryFactory.getInstance(redisdb);
@@ -27,11 +21,7 @@ const userSessionService = serviceFactory.createUserSessionService();
 
 let io: SocketIOServer<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 
-function generateRoomCode(): string {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
-}
-
-export async function GET(req: NextRequest) {
+export async function GET() {
   if (io) {
     return new Response('Socket server already running', { status: 200 });
   }
@@ -124,10 +114,12 @@ export async function GET(req: NextRequest) {
 
           console.log(`Room created: ${room.name} (${room.code})`);
         } catch (error) {
-          console.error('Error creating room:', error);
+          // Only log unexpected errors, not business logic errors
           if (error instanceof ConflictError) {
             socket.emit('room:error', error.message);
           } else {
+            // Log unexpected system errors
+            console.error('Unexpected error creating room:', error);
             socket.emit('room:error', 'Failed to create room');
           }
         }
@@ -185,12 +177,14 @@ export async function GET(req: NextRequest) {
 
           console.log(`User ${userData.userName} joined room ${room.name}`);
         } catch (error) {
-          console.error('Error joining room:', error);
+          // Only log unexpected errors, not business logic errors
           if (error instanceof NotFoundError) {
             socket.emit('room:error', 'Room not found');
           } else if (error instanceof ConflictError) {
             socket.emit('room:error', error.message);
           } else {
+            // Log unexpected system errors
+            console.error('Unexpected error joining room:', error);
             socket.emit('room:error', 'Failed to join room');
           }
         }
@@ -255,14 +249,14 @@ export async function GET(req: NextRequest) {
 
           console.log(`SUCCESS: Room ${data.roomId} deleted by ${userData.userName}`);
         } catch (error) {
-          console.error('=== ROOM DELETE ERROR ===');
-          console.error('Error deleting room:', error);
-          
+          // Only log unexpected errors, not business logic errors
           if (error instanceof NotFoundError) {
             socket.emit('room:error', 'Room not found');
           } else if (error instanceof ConflictError) {
             socket.emit('room:error', error.message);
           } else {
+            console.error('=== ROOM DELETE ERROR ===');
+            console.error('Unexpected error deleting room:', error);
             socket.emit('room:error', 'Failed to delete room');
           }
         }
@@ -312,10 +306,12 @@ export async function GET(req: NextRequest) {
 
           console.log(`SUCCESS: Message sent in room ${data.roomId}: ${data.content.substring(0, 50)}...`);
         } catch (error) {
-          console.error('=== TEXT MESSAGE ERROR ===');
-          console.error('Error sending message:', error);
+          // Only log unexpected errors, not business logic errors
           if (error instanceof ConflictError) {
             socket.emit('room:error', error.message);
+          } else {
+            console.error('=== TEXT MESSAGE ERROR ===');
+            console.error('Unexpected error sending message:', error);
           }
         }
       });

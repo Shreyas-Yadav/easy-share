@@ -155,7 +155,6 @@ export class HealthChecker {
     try {
       // Test service operations
       const roomService = this.serviceFactory.createRoomService();
-      const messageService = this.serviceFactory.createMessageService();
       const userSessionService = this.serviceFactory.createUserSessionService();
 
       // Test each service with lightweight operations

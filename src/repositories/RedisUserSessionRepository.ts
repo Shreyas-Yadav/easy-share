@@ -186,7 +186,7 @@ export class RedisUserSessionRepository implements IUserSessionRepository {
     return JSON.stringify(data);
   }
 
-  private deserializeSocketData(data: any): SocketData {
+  private deserializeSocketData(data: any): SocketData { // eslint-disable-line @typescript-eslint/no-explicit-any
     return typeof data === 'string' ? JSON.parse(data) : data;
   }
 } 

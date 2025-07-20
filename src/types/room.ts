@@ -125,7 +125,6 @@ export interface RoomContextType {
   participants: RoomParticipant[];
   isConnected: boolean;
   isLoading: boolean;
-  error: string | null;
   isUploading: boolean;
   uploadProgress: number;
   currentUserId: string | null;

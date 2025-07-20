@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useSocket } from '../providers/SocketProvider';
+import { userToast } from '@/services/ToastService';
 import type { Room } from '../../types/room';
 
 interface RoomHeaderProps {
@@ -26,9 +27,10 @@ export default function RoomHeader({
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      // You could add a toast notification here
+      userToast.copyToClipboard();
     } catch (err) {
       console.error('Failed to copy to clipboard:', err);
+      userToast.copyFailed();
     }
   };
 

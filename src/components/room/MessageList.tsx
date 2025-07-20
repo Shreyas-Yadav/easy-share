@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { useSocket } from '../providers/SocketProvider';
-import type { Message } from '../../types/room';
+import type { Message, ImageMessage } from '../../types/room';
 
 interface MessageListProps {
   messages: Message[];
@@ -106,9 +107,11 @@ export default function MessageList({ messages }: MessageListProps) {
                   {showUserInfo && !isOwnMessage && (
                     <div className="flex-shrink-0">
                       {message.userImage ? (
-                        <img
+                        <Image
                           src={message.userImage}
                           alt={message.userName}
+                          width={32}
+                          height={32}
                           className="h-8 w-8 rounded-full object-cover"
                         />
                       ) : (
@@ -143,16 +146,22 @@ export default function MessageList({ messages }: MessageListProps) {
                     }`}>
                       {message.type === 'image' ? (
                         <div className="space-y-2">
-                          <img 
-                            src={(message as any).imageUrl} 
-                            alt={(message as any).imageName}
-                            className="max-w-xs max-h-64 rounded-lg object-cover cursor-pointer"
-                            onClick={() => window.open((message as any).imageUrl, '_blank')}
-                          />
+                          <div 
+                            className="cursor-pointer inline-block max-w-xs max-h-64"
+                            onClick={() => window.open((message as ImageMessage).imageUrl, '_blank')}
+                          >
+                            <Image 
+                              src={(message as ImageMessage).imageUrl} 
+                              alt={(message as ImageMessage).imageName}
+                              width={300}
+                              height={256}
+                              className="rounded-lg object-cover w-auto h-auto max-w-full max-h-64"
+                            />
+                          </div>
                           <div className={`text-xs px-2 pb-1 ${
                             isOwnMessage ? 'text-indigo-200' : 'text-gray-500'
                           }`}>
-                            {(message as any).imageName}
+                            {(message as ImageMessage).imageName}
                           </div>
                         </div>
                       ) : (

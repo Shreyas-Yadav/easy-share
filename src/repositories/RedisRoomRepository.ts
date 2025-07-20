@@ -208,12 +208,12 @@ export class RedisRoomRepository implements IRoomRepository {
     });
   }
 
-  private deserializeRoom(data: any): Room {
+  private deserializeRoom(data: any): Room { // eslint-disable-line @typescript-eslint/no-explicit-any
     const parsed = typeof data === 'string' ? JSON.parse(data) : data;
     return {
       ...parsed,
       createdAt: new Date(parsed.createdAt),
-      participants: parsed.participants.map((p: any) => ({
+      participants: parsed.participants.map((p: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
         ...p,
         joinedAt: new Date(p.joinedAt),
         lastSeen: new Date(p.lastSeen),

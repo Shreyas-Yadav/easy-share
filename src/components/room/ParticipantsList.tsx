@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import type { RoomParticipant } from '../../types/room';
 
 interface ParticipantsListProps {
@@ -28,9 +29,11 @@ export default function ParticipantsList({ participants }: ParticipantsListProps
       {/* Avatar */}
       <div className="relative flex-shrink-0">
         {participant.imageUrl ? (
-          <img
+          <Image
             src={participant.imageUrl}
             alt={`${participant.firstName} ${participant.lastName}`}
+            width={40}
+            height={40}
             className="h-10 w-10 rounded-full object-cover"
           />
         ) : (

@@ -8,8 +8,11 @@ import {
 } from '@clerk/nextjs'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
+import 'react-toastify/dist/ReactToastify.css'
 import Sidebar from '@/components/Sidebar'
 import SocketProvider from '@/components/providers/SocketProvider'
+import { ToastContainer } from 'react-toastify'
+import { DEFAULT_TOAST_CONFIG } from '@/services/ToastService'
 import { headers } from 'next/headers'
 
 const geistSans = Geist({
@@ -109,6 +112,21 @@ export default async function RootLayout({
             </SignedOut>
           </div>
           </SocketProvider>
+          
+          {/* Toast Container for notifications */}
+          <ToastContainer
+            position={DEFAULT_TOAST_CONFIG.position}
+            autoClose={DEFAULT_TOAST_CONFIG.autoClose}
+            hideProgressBar={DEFAULT_TOAST_CONFIG.hideProgressBar}
+            newestOnTop={false}
+            closeOnClick={DEFAULT_TOAST_CONFIG.closeOnClick}
+            rtl={false}
+            pauseOnFocusLoss
+            draggable={DEFAULT_TOAST_CONFIG.draggable}
+            pauseOnHover={DEFAULT_TOAST_CONFIG.pauseOnHover}
+            theme={DEFAULT_TOAST_CONFIG.theme}
+            className="!z-[9999]"
+          />
         </body>
       </html>
     </ClerkProvider>

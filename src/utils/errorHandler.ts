@@ -9,13 +9,13 @@ export interface ErrorResponse {
   };
 }
 
-export interface SuccessResponse<T = any> {
+export interface SuccessResponse<T = unknown> {
   success: true;
   data: T;
   timestamp: string;
 }
 
-export type ApiResponse<T = any> = SuccessResponse<T> | ErrorResponse;
+export type ApiResponse<T = unknown> = SuccessResponse<T> | ErrorResponse;
 
 export function createErrorResponse(error: Error): ErrorResponse {
   const timestamp = new Date().toISOString();
@@ -72,7 +72,7 @@ export function createSuccessResponse<T>(data: T): SuccessResponse<T> {
   };
 }
 
-export function handleAsyncError<T extends (...args: any[]) => Promise<any>>(
+export function handleAsyncError<T extends (...args: unknown[]) => Promise<unknown>>(
   fn: T
 ): T {
   return (async (...args: Parameters<T>) => {

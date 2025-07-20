@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { useUser } from '@clerk/nextjs';
 import { io, Socket } from 'socket.io-client';
 import { useRouter } from 'next/navigation';
+import { socketToast, roomToast, messageToast, userToast } from '@/services/ToastService';
 import type { 
   RoomContextType, 
   Room, 
@@ -28,7 +29,6 @@ export function SocketProvider({ children }: SocketProviderProps) {
   const [socket, setSocket] = useState<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   
@@ -38,7 +38,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
   const [participants, setParticipants] = useState<RoomParticipant[]>([]);
   
   // Typing state
-  const [typingUsers, setTypingUsers] = useState<TypingUsers>({});
+  const [, setTypingUsers] = useState<TypingUsers>({});
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize socket connection
@@ -62,7 +62,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
         newSocket.on('connect', () => {
           console.log('Connected to socket server');
           setIsConnected(true);
-          setError(null);
+          socketToast.connectionEstablished();
           
           // Authenticate user
           newSocket.emit('user:authenticate', {
@@ -76,12 +76,13 @@ export function SocketProvider({ children }: SocketProviderProps) {
         newSocket.on('disconnect', () => {
           console.log('Disconnected from socket server');
           setIsConnected(false);
+          socketToast.connectionLost();
         });
 
         newSocket.on('connect_error', (error) => {
           console.error('Socket connection error:', error);
-          setError('Failed to connect to server');
           setIsConnected(false);
+          socketToast.connectionFailed();
         });
 
         // Room event handlers
@@ -91,6 +92,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
           setParticipants(room.participants);
           setMessages([]);
           setIsLoading(false);
+          roomToast.roomCreated(room.name, room.code);
           router.push(`/room/${room.id}`);
         });
 
@@ -100,13 +102,24 @@ export function SocketProvider({ children }: SocketProviderProps) {
           setParticipants(data.room.participants);
           setMessages([]);
           setIsLoading(false);
+          roomToast.roomJoined(data.room.name);
           router.push(`/room/${data.room.id}`);
         });
 
         newSocket.on('room:error', (error) => {
           console.error('Room error:', error);
-          setError(error);
           setIsLoading(false);
+          
+          // Show specific error toasts based on error message
+          if (error.toLowerCase().includes('not found')) {
+            roomToast.roomNotFound();
+          } else if (error.toLowerCase().includes('full')) {
+            roomToast.roomFull();
+          } else if (error.toLowerCase().includes('invalid') || error.toLowerCase().includes('room code')) {
+            roomToast.invalidRoomCode();
+          } else {
+            roomToast.error(error);
+          }
         });
 
         newSocket.on('room:deleted', (roomId) => {
@@ -115,7 +128,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
             setCurrentRoom(null);
             setMessages([]);
             setParticipants([]);
-            setError('Room has been deleted by the creator');
+            roomToast.roomDeleted();
             router.push('/');
           }
         });
@@ -136,13 +149,24 @@ export function SocketProvider({ children }: SocketProviderProps) {
             }
             return [...prev, participant];
           });
+          
+          // Show user joined notification
+          const userName = `${participant.firstName} ${participant.lastName}`.trim();
+          userToast.userJoined(userName);
         });
 
         newSocket.on('user:left', (userId) => {
           console.log('User left:', userId);
+          const leavingUser = participants.find(p => p.userId === userId);
           setParticipants(prev => 
             prev.map(p => p.userId === userId ? { ...p, isOnline: false } : p)
           );
+          
+          // Show user left notification
+          if (leavingUser) {
+            const userName = `${leavingUser.firstName} ${leavingUser.lastName}`.trim();
+            userToast.userLeft(userName);
+          }
         });
 
         newSocket.on('user:typing', (data) => {
@@ -180,7 +204,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
       })
       .catch((error) => {
         console.error('Failed to initialize socket server:', error);
-        setError('Failed to initialize connection');
+        socketToast.connectionFailed();
       });
 
     // Cleanup function
@@ -190,6 +214,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
         socket.disconnect();
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, router]); // Only depend on user and router
 
   // Cleanup typing timeout
@@ -204,24 +229,22 @@ export function SocketProvider({ children }: SocketProviderProps) {
   // Action functions
   const createRoom = useCallback(async (name: string, maxParticipants?: number) => {
     if (!socket || !isConnected) {
-      setError('Not connected to server');
+      socketToast.connectionFailed();
       return;
     }
 
     setIsLoading(true);
-    setError(null);
     
     socket.emit('room:create', { name, maxParticipants });
   }, [socket, isConnected]);
 
   const joinRoom = useCallback(async (code: string) => {
     if (!socket || !isConnected) {
-      setError('Not connected to server');
+      socketToast.connectionFailed();
       return;
     }
 
     setIsLoading(true);
-    setError(null);
     
     socket.emit('room:join', { code });
   }, [socket, isConnected]);
@@ -234,6 +257,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
     setMessages([]);
     setParticipants([]);
     setTypingUsers({});
+    roomToast.roomLeft();
     router.push('/');
   }, [socket, currentRoom, router]);
 
@@ -253,7 +277,6 @@ export function SocketProvider({ children }: SocketProviderProps) {
           setCurrentRoom(null);
           setMessages([]);
           setParticipants([]);
-          setError(null);
           // Redirect to dashboard
           router.push('/');
           resolve();
@@ -262,7 +285,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
 
       const handleError = (error: string) => {
         console.error('Room deletion failed:', error);
-        setError(error);
+        roomToast.error(error);
         reject(new Error(error));
       };
 
@@ -296,6 +319,11 @@ export function SocketProvider({ children }: SocketProviderProps) {
         hasCurrentRoom: !!currentRoom,
         hasContent: !!content.trim()
       });
+      
+      if (!socket || !socket.connected) {
+        messageToast.messageSendFailed();
+        socketToast.connectionFailed();
+      }
       return;
     }
 
@@ -326,6 +354,26 @@ export function SocketProvider({ children }: SocketProviderProps) {
         socketConnected: socket?.connected,
         socketId: socket?.id
       });
+      
+      if (!socket || !socket.connected) {
+        messageToast.imageUploadFailed('Not connected to server');
+        socketToast.connectionFailed();
+      } else {
+        messageToast.imageUploadFailed();
+      }
+      return;
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      messageToast.invalidFileType();
+      return;
+    }
+
+    // Validate file size (3MB limit)
+    const maxSize = 3 * 1024 * 1024; // 3MB
+    if (file.size > maxSize) {
+      messageToast.fileTooLarge('3MB');
       return;
     }
 
@@ -340,7 +388,9 @@ export function SocketProvider({ children }: SocketProviderProps) {
 
     setIsUploading(true);
     setUploadProgress(0);
-    setError(null);
+    
+    // Show upload started toast
+    const uploadToastId = messageToast.imageUploadStarted();
 
     try {
       // Create FormData for HTTP upload
@@ -383,6 +433,12 @@ export function SocketProvider({ children }: SocketProviderProps) {
       console.log('4. SUCCESS: Image uploaded and message broadcasted');
       setUploadProgress(100);
 
+      // Update the upload toast to success
+      messageToast.update(uploadToastId, { 
+        render: 'Image uploaded successfully!', 
+        type: 'success' 
+      });
+
       // Reset progress after short delay
       setTimeout(() => {
         setUploadProgress(0);
@@ -393,9 +449,15 @@ export function SocketProvider({ children }: SocketProviderProps) {
       console.error('=== IMAGE UPLOAD ERROR ===');
       console.error('Upload error:', error);
       
-      setError(error instanceof Error ? error.message : 'Upload failed');
+      const errorMessage = error instanceof Error ? error.message : 'Upload failed';
       setIsUploading(false);
       setUploadProgress(0);
+      
+      // Update the upload toast to error
+      messageToast.update(uploadToastId, { 
+        render: errorMessage, 
+        type: 'error' 
+      });
     }
   }, [socket, currentRoom, user]);
 
@@ -441,7 +503,6 @@ export function SocketProvider({ children }: SocketProviderProps) {
     participants,
     isConnected,
     isLoading,
-    error,
     isUploading,
     uploadProgress,
     currentUserId: user?.id || null,

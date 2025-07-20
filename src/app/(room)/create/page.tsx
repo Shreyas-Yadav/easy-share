@@ -5,7 +5,7 @@ import { useSocket } from '../../../components/providers/SocketProvider';
 import type { CreateRoomFormData } from '../../../types/room';
 
 export default function CreateRoom() {
-  const { createRoom, isLoading, error, isConnected } = useSocket();
+  const { createRoom, isLoading, isConnected } = useSocket();
   const [formData, setFormData] = useState<CreateRoomFormData>({
     name: '',
     maxParticipants: 10,
@@ -100,9 +100,9 @@ export default function CreateRoom() {
             </p>
           </div>
 
-          {(error || formError) && (
+          {formError && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-              <p className="text-sm text-red-600">{error || formError}</p>
+              <p className="text-sm text-red-600">{formError}</p>
             </div>
           )}
 
@@ -128,7 +128,7 @@ export default function CreateRoom() {
             <span>Connected to server</span>
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            Once created, you'll get a room code to share with others
+            Once created, you&apos;ll get a room code to share with others
           </p>
         </div>
       </div>

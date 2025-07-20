@@ -187,7 +187,7 @@ export class RedisMessageRepository implements IMessageRepository {
     });
   }
 
-  private deserializeMessage(data: any): Message {
+  private deserializeMessage(data: any): Message { // eslint-disable-line @typescript-eslint/no-explicit-any
     const parsed = typeof data === 'string' ? JSON.parse(data) : data;
     return {
       ...parsed,

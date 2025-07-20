@@ -5,7 +5,7 @@ import { useSocket } from '../../../components/providers/SocketProvider';
 import type { JoinRoomFormData } from '../../../types/room';
 
 export default function JoinRoom() {
-  const { joinRoom, isLoading, error, isConnected } = useSocket();
+  const { joinRoom, isLoading, isConnected } = useSocket();
   const [formData, setFormData] = useState<JoinRoomFormData>({
     code: '',
   });
@@ -83,9 +83,9 @@ export default function JoinRoom() {
             </p>
           </div>
 
-          {(error || formError) && (
+          {formError && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-              <p className="text-sm text-red-600">{error || formError}</p>
+              <p className="text-sm text-red-600">{formError}</p>
             </div>
           )}
 

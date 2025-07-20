@@ -260,7 +260,7 @@ export class FirebaseStorageService implements IStorageService {
       }
       
       return pathParam;
-    } catch (error) {
+    } catch {
       throw new StorageError(`Invalid storage URL: ${url}`, 'INVALID_URL');
     }
   }

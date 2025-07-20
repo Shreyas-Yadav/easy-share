@@ -62,7 +62,7 @@ export default function Sidebar() {
   )
 }
 
-function SidebarContent({ user }: { user: any }) {
+function SidebarContent({ user }: { user: any }) { // eslint-disable-line @typescript-eslint/no-explicit-any
   return (
     <>
       {/* Logo/Brand */}

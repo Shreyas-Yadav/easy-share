@@ -7,7 +7,6 @@ import { ServiceFactory } from '../../../factories/ServiceFactory';
 const repositoryFactory = RepositoryFactory.getInstance(redisdb);
 const serviceFactory = ServiceFactory.getInstance(repositoryFactory);
 const messageService = serviceFactory.createMessageService();
-const userSessionService = serviceFactory.createUserSessionService();
 
 export async function POST(req: NextRequest) {
   try {

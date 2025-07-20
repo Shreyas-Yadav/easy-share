@@ -2,9 +2,10 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useSocket } from '../providers/SocketProvider';
+import { messageToast } from '@/services/ToastService';
 
 export default function MessageInput() {
-  const { sendMessage, sendImage, setTyping, currentRoom, isUploading, uploadProgress, error } = useSocket();
+  const { sendMessage, sendImage, setTyping, currentRoom, isUploading, uploadProgress } = useSocket();
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -62,7 +63,7 @@ export default function MessageInput() {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e as any);
+      handleSubmit(e as React.FormEvent);
     }
   };
 
@@ -92,7 +93,7 @@ export default function MessageInput() {
     // Validate file type
     if (!file.type.startsWith('image/')) {
       console.error('Invalid file type selected:', file.type);
-      alert('Please select an image file');
+      messageToast.invalidFileType();
       return;
     }
 
@@ -100,7 +101,7 @@ export default function MessageInput() {
     const maxSize = 3 * 1024 * 1024; // 3MB
     if (file.size > maxSize) {
       console.error('File too large:', file.size, 'bytes. Max:', maxSize);
-      alert('Image size must be less than 3MB');
+      messageToast.fileTooLarge('3MB');
       return;
     }
 
@@ -145,12 +146,7 @@ export default function MessageInput() {
         </div>
       )}
 
-      {/* Error Display */}
-      {error && !isUploading && (
-        <div className="mb-3 bg-red-50 border border-red-200 rounded-lg p-3">
-          <p className="text-sm text-red-600">{error}</p>
-        </div>
-      )}
+
 
       <form onSubmit={handleSubmit} className="flex items-end space-x-3">
         {/* Message Input */}

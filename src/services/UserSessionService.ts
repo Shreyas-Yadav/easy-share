@@ -98,7 +98,6 @@ export class UserSessionService {
   async getTypingUsers(roomId: string): Promise<{ userId: string; timestamp: number }[]> {
     try {
       // Get all typing indicators for the room
-      const typingPattern = this.getTypingKey(roomId, '*');
       // Note: This is a simplified implementation
       // In production, you might want to use a Redis SCAN operation
       
