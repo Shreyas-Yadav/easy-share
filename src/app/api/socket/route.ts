@@ -54,6 +54,15 @@ export async function GET(req: NextRequest) {
     io.on('connection', (socket) => {
       console.log(`User connected: ${socket.id}`);
 
+      // Log all incoming events for debugging
+      socket.onAny((eventName, ...args) => {
+        console.log(`[DEBUG] Event received: ${eventName}`, { 
+          socketId: socket.id, 
+          argsCount: args.length,
+          firstArgKeys: args[0] ? Object.keys(args[0]) : 'no args'
+        });
+      });
+
       // User authentication
       socket.on('user:authenticate', async (data) => {
         try {
@@ -103,10 +112,7 @@ export async function GET(req: NextRequest) {
           const updatedRoom = await roomService.findRoomById(room.id);
 
           // Send success response with empty message history
-          socket.emit('room:created', {
-            ...updatedRoom!,
-            recentMessages: []
-          });
+          socket.emit('room:created', updatedRoom!);
           
           // Send system message
           const systemMessage = await messageService.sendSystemMessage(
@@ -154,15 +160,17 @@ export async function GET(req: NextRequest) {
           await socket.join(room.id);
           await userSessionService.updateUserRoom(userData.userId, room.id);
 
-          // Load recent messages for the user
-          const recentMessages = await messageService.getRoomMessages(room.id, 50, 0);
-          
           // Notify user of successful join with recent messages
           socket.emit('room:joined', { 
             room, 
-            participant: joinedParticipant,
-            recentMessages
+            participant: joinedParticipant
           });
+
+          // Send recent messages separately
+          const recentMessages = await messageService.getRoomMessages(room.id, 50, 0);
+          for (const message of recentMessages.reverse()) {
+            socket.emit('message:new', message);
+          }
 
           // Notify other users
           socket.to(room.id).emit('user:joined', joinedParticipant);
@@ -219,12 +227,33 @@ export async function GET(req: NextRequest) {
 
       // Send message
       socket.on('message:send', async (data) => {
+        console.log('=== TEXT MESSAGE SEND EVENT RECEIVED ===');
+        console.log('Message data:', {
+          roomId: data.roomId,
+          content: data.content?.substring(0, 100) + (data.content?.length > 100 ? '...' : ''),
+          type: data.type
+        });
+
         try {
           const userData = await userSessionService.getUserBySocketId(socket.id);
+          console.log('User data for message send:', {
+            hasUserData: !!userData,
+            userId: userData?.userId,
+            userName: userData?.userName,
+            userRoomId: userData?.roomId,
+            requestedRoomId: data.roomId,
+            roomMatch: userData?.roomId === data.roomId
+          });
+
           if (!userData || userData.roomId !== data.roomId) {
+            console.error('Message send validation failed:', {
+              userData: !!userData,
+              roomMatch: userData?.roomId === data.roomId
+            });
             return;
           }
 
+          console.log('Creating text message...');
           const message = await messageService.sendMessage({
             roomId: data.roomId,
             userId: userData.userId,
@@ -234,11 +263,13 @@ export async function GET(req: NextRequest) {
             type: data.type || 'text',
           });
 
+          console.log('Text message created, broadcasting...');
           // Broadcast message to all users in the room
           io.to(data.roomId).emit('message:new', message);
 
-          console.log(`Message sent in room ${data.roomId}: ${data.content}`);
+          console.log(`SUCCESS: Message sent in room ${data.roomId}: ${data.content.substring(0, 50)}...`);
         } catch (error) {
+          console.error('=== TEXT MESSAGE ERROR ===');
           console.error('Error sending message:', error);
           if (error instanceof ConflictError) {
             socket.emit('room:error', error.message);
@@ -246,35 +277,28 @@ export async function GET(req: NextRequest) {
         }
       });
 
-      // Image upload
-      socket.on('image:upload', async (data) => {
+      // Image uploaded (after HTTP upload)
+      socket.on('image:uploaded', async (data) => {
+        console.log('=== IMAGE UPLOADED BROADCAST EVENT ===');
+        console.log('Broadcasting image message:', {
+          roomId: data.roomId,
+          messageId: data.message.id,
+          imageName: data.message.imageName
+        });
+
         try {
           const userData = await userSessionService.getUserBySocketId(socket.id);
           if (!userData || userData.roomId !== data.roomId) {
+            console.error('User validation failed for image broadcast');
             return;
           }
 
-          // In a real app, you'd upload to cloud storage (AWS S3, Cloudinary, etc.)
-          // For now, we'll just use the base64 data directly
-          const imageMessage = await messageService.sendImageMessage({
-            roomId: data.roomId,
-            userId: userData.userId,
-            userName: userData.userName,
-            userImage: userData.userImage,
-            imageUrl: data.image, // base64 image data
-            imageName: data.imageName,
-            imageSize: data.imageSize,
-          });
+          // Broadcast the image message to all users in the room
+          io.to(data.roomId).emit('message:new', data.message);
 
-          // Broadcast image message to all users in the room
-          io.to(data.roomId).emit('message:new', imageMessage);
-
-          console.log(`Image sent in room ${data.roomId}: ${data.imageName}`);
+          console.log('SUCCESS: Image message broadcasted to room', data.roomId);
         } catch (error) {
-          console.error('Error sending image:', error);
-          if (error instanceof ConflictError) {
-            socket.emit('room:error', error.message);
-          }
+          console.error('Error broadcasting image message:', error);
         }
       });
 

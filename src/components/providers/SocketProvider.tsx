@@ -29,6 +29,8 @@ export function SocketProvider({ children }: SocketProviderProps) {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   
   // Room state
   const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
@@ -225,37 +227,114 @@ export function SocketProvider({ children }: SocketProviderProps) {
   }, [socket, currentRoom, router]);
 
   const sendMessage = useCallback((content: string) => {
-    if (!socket || !currentRoom || !content.trim()) return;
+    if (!socket || !currentRoom || !content.trim()) {
+      console.error('sendMessage failed:', {
+        hasSocket: !!socket,
+        hasCurrentRoom: !!currentRoom,
+        hasContent: !!content.trim()
+      });
+      return;
+    }
+
+    console.log('=== SENDING TEXT MESSAGE ===');
+    console.log('Message data:', {
+      roomId: currentRoom.id,
+      content: content.substring(0, 100) + (content.length > 100 ? '...' : ''),
+      type: 'text',
+      socketConnected: socket.connected,
+      socketId: socket.id
+    });
 
     socket.emit('message:send', {
       roomId: currentRoom.id,
       content: content.trim(),
       type: 'text'
     });
+
+    console.log('Text message emitted successfully');
   }, [socket, currentRoom]);
 
-  const sendImage = useCallback((file: File) => {
-    if (!socket || !currentRoom) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const base64Image = e.target?.result as string;
-      socket.emit('image:upload', {
-        roomId: currentRoom.id,
-        image: base64Image,
-        imageName: file.name,
-        imageSize: file.size
+  const sendImage = useCallback(async (file: File) => {
+    if (!socket || !currentRoom || !user) {
+      console.error('sendImage failed: missing requirements', { 
+        hasSocket: !!socket, 
+        hasCurrentRoom: !!currentRoom,
+        hasUser: !!user,
+        socketConnected: socket?.connected,
+        socketId: socket?.id
       });
-    };
-    reader.readAsDataURL(file);
-  }, [socket, currentRoom]);
+      return;
+    }
 
-  const sendFile = useCallback((file: File) => {
-    if (!socket || !currentRoom) return;
+    console.log('=== STARTING HTTP IMAGE UPLOAD ===');
+    console.log('Upload data:', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      roomId: currentRoom.id,
+      userId: user.id
+    });
 
-    // TODO: Implement file upload
-    console.log('File upload not implemented yet:', file.name);
-  }, [socket, currentRoom]);
+    setIsUploading(true);
+    setUploadProgress(0);
+    setError(null);
+
+    try {
+      // Create FormData for HTTP upload
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('roomId', currentRoom.id);
+      formData.append('userId', user.id);
+      formData.append('userName', `${user.firstName} ${user.lastName}`.trim() || user.emailAddresses[0]?.emailAddress || 'Anonymous');
+      formData.append('userImage', user.imageUrl);
+
+      console.log('1. Uploading image via HTTP...');
+      setUploadProgress(25);
+
+      // Upload to HTTP endpoint
+      const response = await fetch('/api/upload-image', {
+        method: 'POST',
+        body: formData,
+      });
+
+      console.log('2. HTTP request completed, status:', response.status);
+      setUploadProgress(75);
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Upload failed');
+      }
+
+      console.log('3. Upload successful, broadcasting message...');
+      setUploadProgress(90);
+
+      // Broadcast the image message via socket
+      if (socket && result.message) {
+        socket.emit('image:uploaded', {
+          roomId: currentRoom.id,
+          message: result.message
+        });
+      }
+
+      console.log('4. SUCCESS: Image uploaded and message broadcasted');
+      setUploadProgress(100);
+
+      // Reset progress after short delay
+      setTimeout(() => {
+        setUploadProgress(0);
+        setIsUploading(false);
+      }, 1000);
+
+    } catch (error) {
+      console.error('=== IMAGE UPLOAD ERROR ===');
+      console.error('Upload error:', error);
+      
+      setError(error instanceof Error ? error.message : 'Upload failed');
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
+  }, [socket, currentRoom, user]);
 
   const setTyping = useCallback((isTyping: boolean) => {
     if (!socket || !currentRoom) return;
@@ -300,13 +379,14 @@ export function SocketProvider({ children }: SocketProviderProps) {
     isConnected,
     isLoading,
     error,
+    isUploading,
+    uploadProgress,
     currentUserId: user?.id || null,
     createRoom,
     joinRoom,
     leaveRoom,
     sendMessage,
     sendImage,
-    sendFile,
     setTyping,
   };
 

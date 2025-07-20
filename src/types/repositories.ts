@@ -1,4 +1,5 @@
 import type { Room, RoomParticipant, Message, SocketData } from './room';
+import type { IStorageService } from './storage';
 
 // Repository interfaces following Interface Segregation Principle
 export interface IRoomRepository {
@@ -52,6 +53,7 @@ export interface IRepositoryFactory {
   createMessageRepository(): IMessageRepository;
   createUserSessionRepository(): IUserSessionRepository;
   createCacheRepository(): ICacheRepository;
+  createStorageService(): IStorageService;
 }
 
 // Error types for repositories

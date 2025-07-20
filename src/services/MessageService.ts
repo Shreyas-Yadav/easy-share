@@ -1,11 +1,14 @@
 import type { Message, ImageMessage, FileMessage, SystemMessage } from '../types/room';
 import type { IMessageRepository, IRoomRepository } from '../types/repositories';
+import type { IStorageService } from '../types/storage';
 import { NotFoundError, ConflictError } from '../types/repositories';
+import { StorageError } from '../types/storage';
 
 export class MessageService {
   constructor(
     private readonly messageRepository: IMessageRepository,
-    private readonly roomRepository: IRoomRepository
+    private readonly roomRepository: IRoomRepository,
+    private readonly storageService: IStorageService
   ) {}
 
   async sendMessage(messageData: {
@@ -66,6 +69,105 @@ export class MessageService {
     return message;
   }
 
+  async uploadAndSendImage(messageData: {
+    roomId: string;
+    userId: string;
+    userName: string;
+    userImage: string;
+    file: File;
+  }): Promise<ImageMessage> {
+    try {
+      // Validate room exists and user has access
+      await this.validateRoomAccess(messageData.roomId, messageData.userId);
+
+      // Upload image to Firebase Storage
+      const folder = `rooms/${messageData.roomId}/images`;
+      const uploadResult = await this.storageService.uploadImage(messageData.file, folder);
+
+      // Create and store the message with Firebase URL
+      const message: ImageMessage = {
+        id: this.generateMessageId(),
+        roomId: messageData.roomId,
+        userId: messageData.userId,
+        userName: messageData.userName,
+        userImage: messageData.userImage,
+        content: `Shared an image: ${uploadResult.fileName}`,
+        type: 'image',
+        timestamp: new Date(),
+        imageUrl: uploadResult.url,
+        imageName: uploadResult.fileName,
+        imageSize: uploadResult.size,
+      };
+
+      await this.messageRepository.create(message);
+      return message;
+    } catch (error) {
+      if (error instanceof StorageError) {
+        throw new ConflictError(`Image upload failed: ${error.message}`);
+      }
+      throw error;
+    }
+  }
+
+  // New method for server-side buffer uploads
+  async uploadAndSendImageFromBuffer(messageData: {
+    roomId: string;
+    userId: string;
+    userName: string;
+    userImage: string;
+    buffer: ArrayBuffer | Buffer;
+    fileName: string;
+    contentType: string;
+  }): Promise<ImageMessage> {
+    try {
+      console.log('uploadAndSendImageFromBuffer called with:', {
+        roomId: messageData.roomId,
+        fileName: messageData.fileName,
+        contentType: messageData.contentType,
+        bufferSize: messageData.buffer instanceof Buffer ? messageData.buffer.length : messageData.buffer.byteLength
+      });
+
+      // Validate room exists and user has access
+      await this.validateRoomAccess(messageData.roomId, messageData.userId);
+
+      // Upload image buffer to Firebase Storage
+      const folder = `rooms/${messageData.roomId}/images`;
+      const uploadResult = await this.storageService.uploadImageFromBuffer(
+        messageData.buffer, 
+        messageData.fileName, 
+        messageData.contentType, 
+        folder
+      );
+
+      console.log('Upload result:', uploadResult);
+
+      // Create and store the message with Firebase URL
+      const message: ImageMessage = {
+        id: this.generateMessageId(),
+        roomId: messageData.roomId,
+        userId: messageData.userId,
+        userName: messageData.userName,
+        userImage: messageData.userImage,
+        content: `Shared an image: ${uploadResult.fileName}`,
+        type: 'image',
+        timestamp: new Date(),
+        imageUrl: uploadResult.url,
+        imageName: uploadResult.fileName,
+        imageSize: uploadResult.size,
+      };
+
+      await this.messageRepository.create(message);
+      console.log('Message created and stored:', message.id);
+      return message;
+    } catch (error) {
+      console.error('Error in uploadAndSendImageFromBuffer:', error);
+      if (error instanceof StorageError) {
+        throw new ConflictError(`Image upload failed: ${error.message}`);
+      }
+      throw error;
+    }
+  }
+
   async sendFileMessage(messageData: {
     roomId: string;
     userId: string;
@@ -96,6 +198,47 @@ export class MessageService {
 
     await this.messageRepository.create(message);
     return message;
+  }
+
+  async uploadAndSendFile(messageData: {
+    roomId: string;
+    userId: string;
+    userName: string;
+    userImage: string;
+    file: File;
+  }): Promise<FileMessage> {
+    try {
+      // Validate room exists and user has access
+      await this.validateRoomAccess(messageData.roomId, messageData.userId);
+
+      // Upload file to Firebase Storage
+      const folder = `rooms/${messageData.roomId}/files`;
+      const uploadResult = await this.storageService.uploadFile(messageData.file, folder);
+
+      // Create and store the message with Firebase URL
+      const message: FileMessage = {
+        id: this.generateMessageId(),
+        roomId: messageData.roomId,
+        userId: messageData.userId,
+        userName: messageData.userName,
+        userImage: messageData.userImage,
+        content: `Shared a file: ${uploadResult.fileName}`,
+        type: 'file',
+        timestamp: new Date(),
+        fileName: uploadResult.fileName,
+        fileSize: uploadResult.size,
+        fileType: uploadResult.contentType,
+        downloadUrl: uploadResult.url,
+      };
+
+      await this.messageRepository.create(message);
+      return message;
+    } catch (error) {
+      if (error instanceof StorageError) {
+        throw new ConflictError(`File upload failed: ${error.message}`);
+      }
+      throw error;
+    }
   }
 
   async sendSystemMessage(
@@ -167,6 +310,25 @@ export class MessageService {
       throw new ConflictError('You can only delete your own messages or you must be the room creator');
     }
 
+    // If it's an image or file message, also delete from storage
+    if (message.type === 'image') {
+      try {
+        const imageMessage = message as ImageMessage;
+        await this.storageService.deleteFile(imageMessage.imageUrl);
+      } catch (error) {
+        console.warn('Failed to delete image from storage:', error);
+        // Continue with message deletion even if storage deletion fails
+      }
+    } else if (message.type === 'file') {
+      try {
+        const fileMessage = message as FileMessage;
+        await this.storageService.deleteFile(fileMessage.downloadUrl);
+      } catch (error) {
+        console.warn('Failed to delete file from storage:', error);
+        // Continue with message deletion even if storage deletion fails
+      }
+    }
+
     await this.messageRepository.delete(messageId);
   }
 
@@ -194,9 +356,24 @@ export class MessageService {
       throw new NotFoundError('Room', roomId);
     }
 
-    // Delete all messages for the room
+    // Get all messages for the room and delete associated files
     const messages = await this.messageRepository.findByRoomId(roomId, 1000, 0);
     for (const message of messages) {
+      if (message.type === 'image') {
+        try {
+          const imageMessage = message as ImageMessage;
+          await this.storageService.deleteFile(imageMessage.imageUrl);
+        } catch (error) {
+          console.warn(`Failed to delete image from storage: ${error}`);
+        }
+      } else if (message.type === 'file') {
+        try {
+          const fileMessage = message as FileMessage;
+          await this.storageService.deleteFile(fileMessage.downloadUrl);
+        } catch (error) {
+          console.warn(`Failed to delete file from storage: ${error}`);
+        }
+      }
       await this.messageRepository.delete(message.id);
     }
   }

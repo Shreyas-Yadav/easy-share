@@ -1,9 +1,11 @@
 import { Redis } from '@upstash/redis';
 import type { IRepositoryFactory, IRoomRepository, IMessageRepository, IUserSessionRepository, ICacheRepository } from '../types/repositories';
+import type { IStorageService } from '../types/storage';
 import { RedisRoomRepository } from '../repositories/RedisRoomRepository';
 import { RedisMessageRepository } from '../repositories/RedisMessageRepository';
 import { RedisUserSessionRepository } from '../repositories/RedisUserSessionRepository';
 import { RedisCacheRepository } from '../repositories/RedisCacheRepository';
+import { FirebaseStorageService } from '../services/FirebaseStorageService';
 
 export class RepositoryFactory implements IRepositoryFactory {
   private static instance: RepositoryFactory;
@@ -12,6 +14,7 @@ export class RepositoryFactory implements IRepositoryFactory {
   private messageRepository?: IMessageRepository;
   private userSessionRepository?: IUserSessionRepository;
   private cacheRepository?: ICacheRepository;
+  private storageService?: IStorageService;
 
   constructor(private readonly redis: Redis) {}
 
@@ -51,11 +54,19 @@ export class RepositoryFactory implements IRepositoryFactory {
     return this.cacheRepository;
   }
 
+  createStorageService(): IStorageService {
+    if (!this.storageService) {
+      this.storageService = new FirebaseStorageService();
+    }
+    return this.storageService;
+  }
+
   // Clean shutdown method
   public dispose(): void {
     this.roomRepository = undefined;
     this.messageRepository = undefined;
     this.userSessionRepository = undefined;
     this.cacheRepository = undefined;
+    this.storageService = undefined;
   }
 } 

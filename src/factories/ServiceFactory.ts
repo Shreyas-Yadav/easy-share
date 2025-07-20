@@ -39,10 +39,12 @@ export class ServiceFactory {
     if (!this.messageService) {
       const messageRepository = this.repositoryFactory.createMessageRepository();
       const roomRepository = this.repositoryFactory.createRoomRepository();
+      const storageService = this.repositoryFactory.createStorageService();
       
       this.messageService = new MessageService(
         messageRepository,
-        roomRepository
+        roomRepository,
+        storageService
       );
     }
     return this.messageService;

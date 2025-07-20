@@ -59,8 +59,8 @@ export interface SystemMessage extends Message {
 // Socket Event Types
 export interface ServerToClientEvents {
   // Room events
-  'room:created': (data: Room & { recentMessages: Message[] }) => void;
-  'room:joined': (data: { room: Room; participant: RoomParticipant; recentMessages: Message[] }) => void;
+  'room:created': (room: Room) => void;
+  'room:joined': (data: { room: Room; participant: RoomParticipant }) => void;
   'room:left': (data: { roomId: string; userId: string }) => void;
   'room:updated': (room: Room) => void;
   'room:error': (error: string) => void;
@@ -77,11 +77,7 @@ export interface ServerToClientEvents {
   'user:online': (userId: string) => void;
   'user:offline': (userId: string) => void;
   
-  // File sharing events
-  'file:uploaded': (message: FileMessage) => void;
-  'file:progress': (data: { fileId: string; progress: number }) => void;
-  
-  // Image events
+  // Image events (only image-related events)
   'image:uploaded': (message: ImageMessage) => void;
 }
 
@@ -103,11 +99,8 @@ export interface ClientToServerEvents {
   'user:typing': (data: { roomId: string; isTyping: boolean }) => void;
   'user:ping': () => void;
   
-  // File sharing events
-  'file:upload': (data: { roomId: string; file: ArrayBuffer; fileName: string; fileType: string }) => void;
-  
-  // Image events
-  'image:upload': (data: { roomId: string; image: string; imageName: string; imageSize: number }) => void;
+  // Image events (HTTP upload + socket broadcast)
+  'image:uploaded': (data: { roomId: string; message: ImageMessage }) => void;
 }
 
 export interface InterServerEvents {
@@ -131,6 +124,8 @@ export interface RoomContextType {
   isConnected: boolean;
   isLoading: boolean;
   error: string | null;
+  isUploading: boolean;
+  uploadProgress: number;
   currentUserId: string | null;
   
   // Actions
@@ -138,8 +133,7 @@ export interface RoomContextType {
   joinRoom: (code: string) => Promise<void>;
   leaveRoom: () => void;
   sendMessage: (content: string) => void;
-  sendImage: (file: File) => void;
-  sendFile: (file: File) => void;
+  sendImage: (file: File) => Promise<void>;
   setTyping: (isTyping: boolean) => void;
 }
 
