@@ -9,6 +9,7 @@ import {
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import Sidebar from '@/components/Sidebar'
+import SocketProvider from '@/components/providers/SocketProvider'
 import { headers } from 'next/headers'
 
 const geistSans = Geist({
@@ -39,10 +40,11 @@ export default async function RootLayout({
     <ClerkProvider>
       <html lang="en">
         <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-200`}>
-          <div className="min-h-screen">
-            <SignedIn>
-              <Sidebar />
-            </SignedIn>
+          <SocketProvider>
+            <div className="min-h-screen">
+              <SignedIn>
+                <Sidebar />
+              </SignedIn>
             
             {/* Main content area */}
             <SignedIn>
@@ -106,6 +108,7 @@ export default async function RootLayout({
               </div>
             </SignedOut>
           </div>
+          </SocketProvider>
         </body>
       </html>
     </ClerkProvider>

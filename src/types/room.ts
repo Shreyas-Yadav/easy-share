@@ -1,0 +1,147 @@
+import { Socket } from 'socket.io-client';
+
+export interface Room {
+  id: string;
+  name: string;
+  code: string;
+  createdBy: string;
+  createdAt: Date;
+  participants: RoomParticipant[];
+  isActive: boolean;
+  maxParticipants?: number;
+}
+
+export interface RoomParticipant {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  imageUrl: string;
+  joinedAt: Date;
+  isOnline: boolean;
+  lastSeen: Date;
+}
+
+export interface Message {
+  id: string;
+  roomId: string;
+  userId: string;
+  userName: string;
+  userImage: string;
+  content: string;
+  type: 'text' | 'file' | 'system';
+  timestamp: Date;
+  edited?: boolean;
+  editedAt?: Date;
+}
+
+export interface FileMessage extends Message {
+  type: 'file';
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  downloadUrl: string;
+}
+
+export interface SystemMessage extends Message {
+  type: 'system';
+  systemType: 'join' | 'leave' | 'room_created' | 'user_typing';
+}
+
+// Socket Event Types
+export interface ServerToClientEvents {
+  // Room events
+  'room:created': (room: Room) => void;
+  'room:joined': (data: { room: Room; participant: RoomParticipant }) => void;
+  'room:left': (data: { roomId: string; userId: string }) => void;
+  'room:updated': (room: Room) => void;
+  'room:error': (error: string) => void;
+  
+  // Message events
+  'message:new': (message: Message) => void;
+  'message:updated': (message: Message) => void;
+  'message:deleted': (messageId: string) => void;
+  
+  // User events
+  'user:joined': (participant: RoomParticipant) => void;
+  'user:left': (userId: string) => void;
+  'user:typing': (data: { userId: string; userName: string; isTyping: boolean }) => void;
+  'user:online': (userId: string) => void;
+  'user:offline': (userId: string) => void;
+  
+  // File sharing events
+  'file:uploaded': (message: FileMessage) => void;
+  'file:progress': (data: { fileId: string; progress: number }) => void;
+}
+
+export interface ClientToServerEvents {
+  // Authentication
+  'user:authenticate': (userData: Omit<SocketData, 'roomId'>) => void;
+  
+  // Room events
+  'room:create': (data: { name: string; maxParticipants?: number }) => void;
+  'room:join': (data: { code: string }) => void;
+  'room:leave': (roomId: string) => void;
+  
+  // Message events
+  'message:send': (data: { roomId: string; content: string; type?: 'text' }) => void;
+  'message:edit': (data: { messageId: string; content: string }) => void;
+  'message:delete': (messageId: string) => void;
+  
+  // User events
+  'user:typing': (data: { roomId: string; isTyping: boolean }) => void;
+  'user:ping': () => void;
+  
+  // File sharing events
+  'file:upload': (data: { roomId: string; file: ArrayBuffer; fileName: string; fileType: string }) => void;
+}
+
+export interface InterServerEvents {
+  ping: () => void;
+}
+
+export interface SocketData {
+  userId: string;
+  userName: string;
+  userImage: string;
+  email: string;
+  roomId?: string;
+}
+
+// Component Props Types
+export interface RoomContextType {
+  socket: Socket<ServerToClientEvents, ClientToServerEvents> | null;
+  currentRoom: Room | null;
+  messages: Message[];
+  participants: RoomParticipant[];
+  isConnected: boolean;
+  isLoading: boolean;
+  error: string | null;
+  
+  // Actions
+  createRoom: (name: string, maxParticipants?: number) => Promise<void>;
+  joinRoom: (code: string) => Promise<void>;
+  leaveRoom: () => void;
+  sendMessage: (content: string) => void;
+  sendFile: (file: File) => void;
+  setTyping: (isTyping: boolean) => void;
+}
+
+export interface CreateRoomFormData {
+  name: string;
+  maxParticipants: number;
+}
+
+export interface JoinRoomFormData {
+  code: string;
+}
+
+// Utility types
+export type TypingUsers = Record<string, { userName: string; timestamp: number }>;
+
+export interface RoomStats {
+  totalMessages: number;
+  totalParticipants: number;
+  filesShared: number;
+  roomAge: string;
+} 
