@@ -109,6 +109,17 @@ export function SocketProvider({ children }: SocketProviderProps) {
           setIsLoading(false);
         });
 
+        newSocket.on('room:deleted', (roomId) => {
+          console.log('Room deleted:', roomId);
+          if (currentRoom?.id === roomId) {
+            setCurrentRoom(null);
+            setMessages([]);
+            setParticipants([]);
+            setError('Room has been deleted by the creator');
+            router.push('/');
+          }
+        });
+
         // Message event handlers
         newSocket.on('message:new', (message) => {
           console.log('New message:', message);
@@ -224,6 +235,58 @@ export function SocketProvider({ children }: SocketProviderProps) {
     setParticipants([]);
     setTypingUsers({});
     router.push('/');
+  }, [socket, currentRoom, router]);
+
+  const deleteRoom = useCallback(() => {
+    if (!socket || !currentRoom) return;
+
+    console.log('=== DELETING ROOM ===');
+    console.log('Requesting deletion of room:', currentRoom.id);
+
+    // Create a promise-based approach to handle the deletion result
+    const deletePromise = new Promise<void>((resolve, reject) => {
+      // Set up temporary listeners for this deletion
+      const handleSuccess = (deletedRoomId: string) => {
+        if (deletedRoomId === currentRoom.id) {
+          console.log('Room deletion successful, redirecting creator to dashboard');
+          // Clean up local state
+          setCurrentRoom(null);
+          setMessages([]);
+          setParticipants([]);
+          setError(null);
+          // Redirect to dashboard
+          router.push('/');
+          resolve();
+        }
+      };
+
+      const handleError = (error: string) => {
+        console.error('Room deletion failed:', error);
+        setError(error);
+        reject(new Error(error));
+      };
+
+      // Listen for success or error
+      socket.once('room:deleted', handleSuccess);
+      socket.once('room:error', handleError);
+
+      // Clean up listeners after 10 seconds to prevent memory leaks
+      setTimeout(() => {
+        socket.off('room:deleted', handleSuccess);
+        socket.off('room:error', handleError);
+        reject(new Error('Delete request timeout'));
+      }, 10000);
+    });
+
+    // Emit the delete request
+    socket.emit('room:delete', {
+      roomId: currentRoom.id
+    });
+
+    // Handle the promise (optional - for error logging)
+    deletePromise.catch((error) => {
+      console.error('Delete room operation failed:', error);
+    });
   }, [socket, currentRoom, router]);
 
   const sendMessage = useCallback((content: string) => {
@@ -385,6 +448,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
     createRoom,
     joinRoom,
     leaveRoom,
+    deleteRoom,
     sendMessage,
     sendImage,
     setTyping,

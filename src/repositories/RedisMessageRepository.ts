@@ -121,35 +121,32 @@ export class RedisMessageRepository implements IMessageRepository {
   }
 
   async getMessageCount(roomId: string): Promise<number> {
-    try {
-      const countKey = this.getMessageCountKey(roomId);
-      const count = await this.redis.get(countKey);
-      return count ? parseInt(count as string, 10) : 0;
-    } catch (error) {
-      throw new RepositoryError(`Failed to get message count: ${error}`);
-    }
+    const messages = await this.findByRoomId(roomId);
+    return messages.length;
   }
 
-  // Additional utility methods
   async deleteRoomMessages(roomId: string): Promise<void> {
+    console.log('=== DELETING ALL ROOM MESSAGES ===');
+    console.log('Room ID:', roomId);
+
     try {
-      const roomMessagesKey = this.getRoomMessagesKey(roomId);
-      const countKey = this.getMessageCountKey(roomId);
-      
-      // Get all message IDs for the room
-      const messageIds = await this.redis.zrange(roomMessagesKey, 0, -1);
-      
-      // Delete all message data
-      if (messageIds && messageIds.length > 0) {
-        const messageKeys = (messageIds as string[]).map(id => this.getMessageKey(id));
-        await this.redis.del(...messageKeys);
+      // Get all messages for the room
+      const messages = await this.findByRoomId(roomId, 1000, 0); // Get a large number to ensure all messages
+      console.log(`Found ${messages.length} messages to delete`);
+
+      // Delete each message individually
+      for (const message of messages) {
+        await this.delete(message.id);
       }
-      
-      // Delete room messages index and count
+
+      // Also clean up the room messages list key
+      const roomMessagesKey = `room:${roomId}:messages`;
       await this.redis.del(roomMessagesKey);
-      await this.redis.del(countKey);
+
+      console.log(`Successfully deleted ${messages.length} messages for room ${roomId}`);
     } catch (error) {
-      throw new RepositoryError(`Failed to delete room messages: ${error}`);
+      console.error('Error deleting room messages:', error);
+      throw error;
     }
   }
 

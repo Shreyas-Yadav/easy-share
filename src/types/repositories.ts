@@ -21,6 +21,7 @@ export interface IMessageRepository {
   update(message: Message): Promise<void>;
   delete(id: string): Promise<void>;
   getMessageCount(roomId: string): Promise<number>;
+  deleteRoomMessages(roomId: string): Promise<void>;
 }
 
 export interface IUserSessionRepository {

@@ -105,13 +105,45 @@ export class RoomService {
   }
 
   async deactivateRoom(roomId: string): Promise<void> {
-    const room = await this.findRoomById(roomId);
+    const room = await this.roomRepository.findById(roomId);
+    if (room) {
+      room.isActive = false;
+      await this.roomRepository.update(room);
+    }
+  }
+
+  async deleteRoom(roomId: string, requestingUserId: string): Promise<void> {
+    console.log('=== DELETING ROOM ===');
+    console.log('Room ID:', roomId, 'Requesting User:', requestingUserId);
+
+    // Get room to verify creator
+    const room = await this.roomRepository.findById(roomId);
     if (!room) {
       throw new NotFoundError('Room', roomId);
     }
 
-    room.isActive = false;
-    await this.roomRepository.update(room);
+    // Only room creator can delete the room
+    if (room.createdBy !== requestingUserId) {
+      throw new ConflictError('Only the room creator can delete the room');
+    }
+
+    console.log('1. Authorization passed, room creator confirmed');
+
+    // Delete all room messages (this will also clean up Firebase Storage)
+    console.log('2. Deleting all room messages and images...');
+    await this.messageRepository.deleteRoomMessages(roomId);
+
+    // Update participants to offline and remove from room
+    console.log('3. Updating participants...');
+    for (const participant of room.participants) {
+      await this.userSessionRepository.updateUserRoom(participant.userId, undefined);
+    }
+
+    // Delete the room itself
+    console.log('4. Deleting room from Redis...');
+    await this.roomRepository.delete(roomId);
+
+    console.log('5. Room deletion completed successfully');
   }
 
   async getActiveRooms(): Promise<Room[]> {

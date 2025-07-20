@@ -225,6 +225,49 @@ export async function GET(req: NextRequest) {
         }
       });
 
+      // Delete room
+      socket.on('room:delete', async (data) => {
+        console.log('=== ROOM DELETE REQUEST ===');
+        console.log('Delete request for room:', data.roomId);
+
+        try {
+          const userData = await userSessionService.getUserBySocketId(socket.id);
+          if (!userData) {
+            socket.emit('room:error', 'User not authenticated');
+            return;
+          }
+
+          console.log('Delete request from user:', userData.userName, userData.userId);
+
+          // Delete the room (this includes authorization check)
+          await roomService.deleteRoom(data.roomId, userData.userId);
+
+          console.log('Room deleted successfully, notifying all participants');
+
+          // Notify all users in the room that it's being deleted
+          io.to(data.roomId).emit('room:deleted', data.roomId);
+
+          // Disconnect all users from the room
+          const socketsInRoom = await io.in(data.roomId).fetchSockets();
+          for (const roomSocket of socketsInRoom) {
+            await roomSocket.leave(data.roomId);
+          }
+
+          console.log(`SUCCESS: Room ${data.roomId} deleted by ${userData.userName}`);
+        } catch (error) {
+          console.error('=== ROOM DELETE ERROR ===');
+          console.error('Error deleting room:', error);
+          
+          if (error instanceof NotFoundError) {
+            socket.emit('room:error', 'Room not found');
+          } else if (error instanceof ConflictError) {
+            socket.emit('room:error', error.message);
+          } else {
+            socket.emit('room:error', 'Failed to delete room');
+          }
+        }
+      });
+
       // Send message
       socket.on('message:send', async (data) => {
         console.log('=== TEXT MESSAGE SEND EVENT RECEIVED ===');

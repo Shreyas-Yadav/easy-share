@@ -64,6 +64,7 @@ export interface ServerToClientEvents {
   'room:left': (data: { roomId: string; userId: string }) => void;
   'room:updated': (room: Room) => void;
   'room:error': (error: string) => void;
+  'room:deleted': (roomId: string) => void;
   
   // Message events
   'message:new': (message: Message) => void;
@@ -89,6 +90,7 @@ export interface ClientToServerEvents {
   'room:create': (data: { name: string; maxParticipants?: number }) => void;
   'room:join': (data: { code: string }) => void;
   'room:leave': (roomId: string) => void;
+  'room:delete': (data: { roomId: string }) => void;
   
   // Message events
   'message:send': (data: { roomId: string; content: string; type?: 'text' }) => void;
@@ -132,6 +134,7 @@ export interface RoomContextType {
   createRoom: (name: string, maxParticipants?: number) => Promise<void>;
   joinRoom: (code: string) => Promise<void>;
   leaveRoom: () => void;
+  deleteRoom: () => void;
   sendMessage: (content: string) => void;
   sendImage: (file: File) => Promise<void>;
   setTyping: (isTyping: boolean) => void;
