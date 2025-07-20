@@ -59,8 +59,8 @@ export interface SystemMessage extends Message {
 // Socket Event Types
 export interface ServerToClientEvents {
   // Room events
-  'room:created': (room: Room) => void;
-  'room:joined': (data: { room: Room; participant: RoomParticipant }) => void;
+  'room:created': (data: Room & { recentMessages: Message[] }) => void;
+  'room:joined': (data: { room: Room; participant: RoomParticipant; recentMessages: Message[] }) => void;
   'room:left': (data: { roomId: string; userId: string }) => void;
   'room:updated': (room: Room) => void;
   'room:error': (error: string) => void;
