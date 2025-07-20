@@ -164,11 +164,11 @@ export class MessageToastService extends ToastService {
 export class UserToastService extends ToastService {
   // User related notifications
   userJoined(userName: string): Id {
-    return this.info(`${userName} joined the room`, { autoClose: 2000 });
+    return this.info(`${userName} joined the room`);
   }
 
   userLeft(userName: string): Id {
-    return this.info(`${userName} left the room`, { autoClose: 2000 });
+    return this.info(`${userName} left the room`);
   }
 
   userKicked(userName: string): Id {
@@ -176,11 +176,15 @@ export class UserToastService extends ToastService {
   }
 
   copyToClipboard(): Id {
-    return this.success('Copied to clipboard!', { autoClose: 1500 });
+    return this.success('Copied to clipboard');
   }
 
   copyFailed(): Id {
     return this.error('Failed to copy to clipboard');
+  }
+
+  logoutCleanup(): Id {
+    return this.info('Session cleanup completed');
   }
 }
 

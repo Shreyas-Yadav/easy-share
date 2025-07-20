@@ -106,7 +106,7 @@ export default function MessageList({ messages }: MessageListProps) {
                   {/* Avatar */}
                   {showUserInfo && !isOwnMessage && (
                     <div className="flex-shrink-0">
-                      {message.userImage ? (
+                      {message.userImage && message.userImage.trim() !== '' ? (
                         <Image
                           src={message.userImage}
                           alt={message.userName}
@@ -150,13 +150,19 @@ export default function MessageList({ messages }: MessageListProps) {
                             className="cursor-pointer inline-block max-w-xs max-h-64"
                             onClick={() => window.open((message as ImageMessage).imageUrl, '_blank')}
                           >
-                            <Image 
-                              src={(message as ImageMessage).imageUrl} 
-                              alt={(message as ImageMessage).imageName}
-                              width={300}
-                              height={256}
-                              className="rounded-lg object-cover w-auto h-auto max-w-full max-h-64"
-                            />
+                            {(message as ImageMessage).imageUrl && (message as ImageMessage).imageUrl.trim() !== '' ? (
+                              <Image 
+                                src={(message as ImageMessage).imageUrl} 
+                                alt={(message as ImageMessage).imageName}
+                                width={300}
+                                height={256}
+                                className="rounded-lg object-cover w-auto h-auto max-w-full max-h-64"
+                              />
+                            ) : (
+                              <div className="w-full h-64 bg-gray-200 rounded-lg flex items-center justify-center">
+                                <span className="text-gray-500">Image not available</span>
+                              </div>
+                            )}
                           </div>
                           <div className={`text-xs px-2 pb-1 ${
                             isOwnMessage ? 'text-indigo-200' : 'text-gray-500'

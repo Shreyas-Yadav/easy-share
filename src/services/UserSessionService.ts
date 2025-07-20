@@ -196,6 +196,50 @@ export class UserSessionService {
     }
   }
 
+  /**
+   * Comprehensive cleanup for user logout - removes all session data
+   * This should be called when user explicitly logs out via Clerk
+   */
+  async cleanupUserLogout(userId: string): Promise<void> {
+    try {
+      console.log(`=== CLEANING UP USER LOGOUT: ${userId} ===`);
+      
+      // Get current socket ID before cleanup
+      const socketId = await this.getSocketByUserId(userId);
+      
+      // 1. Remove user socket mapping
+      await this.userSessionRepository.removeUserSocket(userId);
+      
+      // 2. Remove socket data if exists
+      if (socketId) {
+        await this.userSessionRepository.removeSocketData(socketId);
+      }
+      
+      // 3. Clear all typing indicators for this user
+      await this.clearUserTyping(userId);
+      
+      // 4. Clear user activity tracking
+      const activityKey = this.getUserActivityKey(userId);
+      await this.cacheRepository.delete(activityKey);
+      
+      // 5. Clear any other cached user data
+      const userCacheKeys = [
+        `user_session:${userId}`,
+        `user_presence:${userId}`,
+        `user_status:${userId}`
+      ];
+      
+      for (const key of userCacheKeys) {
+        await this.cacheRepository.delete(key);
+      }
+      
+      console.log(`SUCCESS: User logout cleanup completed for ${userId}`);
+    } catch (error) {
+      console.error(`ERROR: Failed to cleanup user logout for ${userId}:`, error);
+      throw error;
+    }
+  }
+
   async getUserStats(): Promise<{
     totalActiveUsers: number;
     totalActiveRooms: number;

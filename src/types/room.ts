@@ -85,6 +85,7 @@ export interface ServerToClientEvents {
 export interface ClientToServerEvents {
   // Authentication
   'user:authenticate': (userData: Omit<SocketData, 'roomId'>) => void;
+  'user:logout': (userId: string) => void;
   
   // Room events
   'room:create': (data: { name: string; maxParticipants?: number }) => void;

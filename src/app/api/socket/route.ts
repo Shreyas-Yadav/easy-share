@@ -64,6 +64,50 @@ export async function GET() {
         }
       });
 
+      // User logout - explicit logout cleanup
+      socket.on('user:logout', async (userId) => {
+        console.log('=== USER LOGOUT EVENT ===');
+        console.log('Logout request for user:', userId);
+        
+        try {
+          const userData = await userSessionService.getUserBySocketId(socket.id);
+          
+          // Verify the logout request is for the correct user
+          if (!userData || userData.userId !== userId) {
+            console.log('Logout request rejected: user mismatch or not found');
+            return;
+          }
+
+          console.log(`Processing logout for user: ${userData.userName} (${userId})`);
+
+          // If user is in a room, remove them and notify others
+          if (userData.roomId) {
+            await roomService.leaveRoom(userData.roomId, userId);
+            
+            // Notify other users in the room
+            socket.to(userData.roomId).emit('user:left', userId);
+            
+            // Send system message
+            const systemMessage = await messageService.sendSystemMessage(
+              userData.roomId,
+              `${userData.userName} logged out`,
+              'leave'
+            );
+            socket.to(userData.roomId).emit('message:new', systemMessage);
+          }
+
+          // Perform comprehensive session cleanup
+          await userSessionService.cleanupUserLogout(userId);
+
+          // Disconnect the socket
+          socket.disconnect();
+
+          console.log(`SUCCESS: User logout completed for ${userId}`);
+        } catch (error) {
+          console.error('Error handling user logout:', error);
+        }
+      });
+
       // Room creation
       socket.on('room:create', async (data) => {
         try {

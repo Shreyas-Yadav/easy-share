@@ -40,6 +40,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
   // Typing state
   const [, setTypingUsers] = useState<TypingUsers>({});
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const previousUserIdRef = useRef<string | null>(null);
 
   // Initialize socket connection
   useEffect(() => {
@@ -216,6 +217,62 @@ export function SocketProvider({ children }: SocketProviderProps) {
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, router]); // Only depend on user and router
+
+  // Detect user logout and perform cleanup
+  useEffect(() => {
+    // If we had a user before but now we don't, it means logout occurred
+    if (previousUserIdRef.current && !user) {
+      console.log('=== USER LOGOUT DETECTED ===');
+      console.log('Previous user ID:', previousUserIdRef.current);
+      
+      // Emit logout event to socket server first (if connected)
+      if (socket && socket.connected) {
+        console.log('Notifying socket server of logout...');
+        socket.emit('user:logout', previousUserIdRef.current);
+      }
+      
+      // Perform logout cleanup via API
+      const performLogoutCleanup = async () => {
+        try {
+          const response = await fetch('/api/logout', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userId: previousUserIdRef.current
+            })
+          });
+
+          if (!response.ok) {
+            console.error('Logout cleanup failed:', await response.text());
+          } else {
+            console.log('Logout cleanup completed successfully');
+          }
+        } catch (error) {
+          console.error('Error during logout cleanup:', error);
+        }
+      };
+
+      performLogoutCleanup();
+      
+      // Clear local state
+      setCurrentRoom(null);
+      setMessages([]);
+      setParticipants([]);
+      setTypingUsers({});
+      
+      // Disconnect socket if connected
+      if (socket) {
+        socket.disconnect();
+        setSocket(null);
+        setIsConnected(false);
+      }
+    }
+    
+    // Update previous user ID
+    previousUserIdRef.current = user?.id || null;
+  }, [user, socket]);
 
   // Cleanup typing timeout
   useEffect(() => {

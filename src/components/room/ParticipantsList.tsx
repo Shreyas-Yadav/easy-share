@@ -28,7 +28,7 @@ export default function ParticipantsList({ participants }: ParticipantsListProps
     <div className="flex items-center space-x-3 p-3 hover:bg-gray-100 rounded-lg transition-colors">
       {/* Avatar */}
       <div className="relative flex-shrink-0">
-        {participant.imageUrl ? (
+        {participant.imageUrl && participant.imageUrl.trim() !== '' ? (
           <Image
             src={participant.imageUrl}
             alt={`${participant.firstName} ${participant.lastName}`}
