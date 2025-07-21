@@ -30,11 +30,11 @@ export class UserSessionService {
   async disconnectUser(socketId: string): Promise<void> {
     const userData = await this.userSessionRepository.getSocketData(socketId);
     if (userData) {
-      // Remove user socket mapping
-      await this.userSessionRepository.removeUserSocket(userData.userId);
-      
-      // Remove socket data
+      // Remove socket data FIRST to prevent orphaned keys
       await this.userSessionRepository.removeSocketData(socketId);
+      
+      // Then remove user socket mapping
+      await this.userSessionRepository.removeUserSocket(userData.userId);
       
       // Clear typing indicators
       await this.clearUserTyping(userData.userId);
@@ -207,22 +207,32 @@ export class UserSessionService {
       // Get current socket ID before cleanup
       const socketId = await this.getSocketByUserId(userId);
       
-      // 1. Remove user socket mapping
-      await this.userSessionRepository.removeUserSocket(userId);
-      
-      // 2. Remove socket data if exists
+      // CRITICAL FIX: Remove socket data FIRST, before removing the user socket mapping
+      // This prevents orphaned socket_data keys if the user mapping removal succeeds but socket data removal fails
       if (socketId) {
+        console.log(`Removing socket data for socket: ${socketId}`);
         await this.userSessionRepository.removeSocketData(socketId);
       }
       
-      // 3. Clear all typing indicators for this user
+      // Now remove user socket mapping
+      console.log(`Removing user socket mapping for user: ${userId}`);
+      await this.userSessionRepository.removeUserSocket(userId);
+      
+      // Additional cleanup: Remove any remaining socket_data keys for this user
+      // This handles cases where users had multiple sessions or previous cleanup failed
+      const removedCount = await this.userSessionRepository.removeAllSocketDataForUser(userId);
+      if (removedCount > 0) {
+        console.log(`Removed ${removedCount} additional socket_data keys for user: ${userId}`);
+      }
+      
+      // Clear all typing indicators for this user
       await this.clearUserTyping(userId);
       
-      // 4. Clear user activity tracking
+      // Clear user activity tracking
       const activityKey = this.getUserActivityKey(userId);
       await this.cacheRepository.delete(activityKey);
       
-      // 5. Clear any other cached user data
+      // Clear any other cached user data
       const userCacheKeys = [
         `user_session:${userId}`,
         `user_presence:${userId}`,
@@ -240,7 +250,9 @@ export class UserSessionService {
     }
   }
 
-  async getUserStats(): Promise<{
+  
+  
+    async getUserStats(): Promise<{
     totalActiveUsers: number;
     totalActiveRooms: number;
     averageUsersPerRoom: number;
