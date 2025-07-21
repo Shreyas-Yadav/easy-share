@@ -1,5 +1,6 @@
 import type { Room, RoomParticipant, Message, SocketData } from './room';
 import type { IStorageService } from './storage';
+import type { BillExtraction } from './models';
 
 // Repository interfaces following Interface Segregation Principle
 export interface IRoomRepository {
@@ -22,6 +23,15 @@ export interface IMessageRepository {
   delete(id: string): Promise<void>;
   getMessageCount(roomId: string): Promise<number>;
   deleteRoomMessages(roomId: string): Promise<void>;
+}
+
+export interface IBillRepository {
+  create(billExtraction: BillExtraction): Promise<void>;
+  findById(id: string): Promise<BillExtraction | null>;
+  findByRoomId(roomId: string): Promise<BillExtraction[]>;
+  update(billExtraction: BillExtraction): Promise<void>;
+  delete(id: string): Promise<void>;
+  deleteRoomBills(roomId: string): Promise<void>;
 }
 
 export interface IUserSessionRepository {
@@ -52,6 +62,7 @@ export interface ICacheRepository {
 export interface IRepositoryFactory {
   createRoomRepository(): IRoomRepository;
   createMessageRepository(): IMessageRepository;
+  createBillRepository(): IBillRepository;
   createUserSessionRepository(): IUserSessionRepository;
   createCacheRepository(): ICacheRepository;
   createStorageService(): IStorageService;

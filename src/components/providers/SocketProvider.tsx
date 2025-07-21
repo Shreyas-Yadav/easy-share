@@ -4,7 +4,8 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { useUser } from '@clerk/nextjs';
 import { io, Socket } from 'socket.io-client';
 import { useRouter } from 'next/navigation';
-import { socketToast, roomToast, messageToast, userToast } from '@/services/ToastService';
+import { socketToast, roomToast, messageToast} from '@/services/ToastService';
+import { RoomPersistence } from '@/utils/roomPersistence';
 import type { 
   RoomContextType, 
   Room, 
@@ -41,6 +42,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
   const [, setTypingUsers] = useState<TypingUsers>({});
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const previousUserIdRef = useRef<string | null>(null);
+  const isAttemptingRejoinRef = useRef<boolean>(false);
 
   // Initialize socket connection
   useEffect(() => {
@@ -63,7 +65,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
         newSocket.on('connect', () => {
           console.log('Connected to socket server');
           setIsConnected(true);
-          socketToast.connectionEstablished();
+          // Removed connection established toast to reduce notification noise
           
           // Authenticate user
           newSocket.emit('user:authenticate', {
@@ -72,12 +74,36 @@ export function SocketProvider({ children }: SocketProviderProps) {
             userImage: user.imageUrl,
             email: user.emailAddresses[0]?.emailAddress || '',
           });
+
+          // Check for stored room and attempt to rejoin after authentication
+          const attemptRejoin = () => {
+            if (isAttemptingRejoinRef.current) return; // Prevent multiple rejoin attempts
+            
+            const storedRoom = RoomPersistence.getStoredRoom();
+            if (storedRoom && storedRoom.userId === user.id && !currentRoom) {
+              console.log('=== ATTEMPTING ROOM REJOIN ===');
+              console.log('Stored room data:', storedRoom);
+              
+              isAttemptingRejoinRef.current = true;
+              
+              // Attempt to rejoin using room code
+              newSocket.emit('room:join', { code: storedRoom.roomCode });
+              
+              // Reset rejoin flag after timeout
+              setTimeout(() => {
+                isAttemptingRejoinRef.current = false;
+              }, 5000);
+            }
+          };
+
+          // Delay rejoin attempt to ensure authentication is complete
+          setTimeout(attemptRejoin, 1000);
         });
 
         newSocket.on('disconnect', () => {
           console.log('Disconnected from socket server');
           setIsConnected(false);
-          socketToast.connectionLost();
+          // Removed connection lost toast to reduce notification noise during refreshes
         });
 
         newSocket.on('connect_error', (error) => {
@@ -93,6 +119,10 @@ export function SocketProvider({ children }: SocketProviderProps) {
           setParticipants(room.participants);
           setMessages([]);
           setIsLoading(false);
+          
+          // Persist room data for refresh recovery
+          RoomPersistence.storeRoom(room, user.id);
+          
           roomToast.roomCreated(room.name, room.code);
           router.push(`/room/${room.id}`);
         });
@@ -103,12 +133,32 @@ export function SocketProvider({ children }: SocketProviderProps) {
           setParticipants(data.room.participants);
           setMessages([]);
           setIsLoading(false);
+          
+          // Persist room data for refresh recovery
+          RoomPersistence.storeRoom(data.room, user.id);
+          
+          // Reset rejoin flag if this was a rejoin attempt
+          if (isAttemptingRejoinRef.current) {
+            console.log('Successfully rejoined room after refresh');
+            isAttemptingRejoinRef.current = false;
+          }
+          
           router.push(`/room/${data.room.id}`);
         });
 
         newSocket.on('room:error', (error) => {
           console.error('Room error:', error);
           setIsLoading(false);
+          
+          // Handle rejoin failures
+          if (isAttemptingRejoinRef.current) {
+            console.log('Room rejoin failed, clearing stored room data');
+            RoomPersistence.clearStoredRoom();
+            isAttemptingRejoinRef.current = false;
+            
+            // Don't show error toast for failed rejoin attempts (silent failure)
+            return;
+          }
           
           // Show specific error toasts based on error message
           if (error.toLowerCase().includes('not found')) {
@@ -128,6 +178,10 @@ export function SocketProvider({ children }: SocketProviderProps) {
             setCurrentRoom(null);
             setMessages([]);
             setParticipants([]);
+            
+            // Clear stored room data since room no longer exists
+            RoomPersistence.clearStoredRoom();
+            
             roomToast.roomDeleted();
             router.push('/');
           }
@@ -153,7 +207,6 @@ export function SocketProvider({ children }: SocketProviderProps) {
 
         newSocket.on('user:left', (userId) => {
           console.log('User left:', userId);
-          const leavingUser = participants.find(p => p.userId === userId);
           setParticipants(prev => 
             prev.map(p => p.userId === userId ? { ...p, isOnline: false } : p)
           );
@@ -251,6 +304,9 @@ export function SocketProvider({ children }: SocketProviderProps) {
       setParticipants([]);
       setTypingUsers({});
       
+      // Clear stored room data since user is logging out
+      RoomPersistence.clearStoredRoom();
+      
       // Disconnect socket if connected
       if (socket) {
         socket.disconnect();
@@ -303,6 +359,10 @@ export function SocketProvider({ children }: SocketProviderProps) {
     setMessages([]);
     setParticipants([]);
     setTypingUsers({});
+    
+    // Clear stored room data since user is leaving
+    RoomPersistence.clearStoredRoom();
+    
     router.push('/');
   }, [socket, currentRoom, router]);
 
@@ -322,6 +382,10 @@ export function SocketProvider({ children }: SocketProviderProps) {
           setCurrentRoom(null);
           setMessages([]);
           setParticipants([]);
+          
+          // Clear stored room data since room is deleted
+          RoomPersistence.clearStoredRoom();
+          
           // Redirect to dashboard
           router.push('/');
           resolve();
@@ -533,10 +597,15 @@ export function SocketProvider({ children }: SocketProviderProps) {
 
     const interval = setInterval(() => {
       socket.emit('user:ping');
+      
+      // Update stored room timestamp if user is in a room
+      if (currentRoom) {
+        RoomPersistence.updateStoredRoomTimestamp();
+      }
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [socket, isConnected]);
+  }, [socket, isConnected, currentRoom]);
 
   const contextValue: RoomContextType = {
     socket,

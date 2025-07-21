@@ -419,11 +419,14 @@ export async function GET() {
       });
 
       // Handle disconnection
-      socket.on('disconnect', async () => {
+      socket.on('disconnect', async (reason) => {
         try {
           const userData = await userSessionService.getUserBySocketId(socket.id);
           if (userData) {
-            console.log(`User disconnected: ${userData.userName} (${userData.userId})`);
+            // Only log for explicit disconnects, not page refreshes
+            if (reason !== 'client namespace disconnect' && reason !== 'transport close') {
+              console.log(`User disconnected: ${userData.userName} (${userData.userId}) - Reason: ${reason}`);
+            }
             
             // Update participant status if they were in a room
             if (userData.roomId) {

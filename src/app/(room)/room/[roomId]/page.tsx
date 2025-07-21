@@ -17,10 +17,14 @@ export default function RoomPage() {
   const roomId = params.roomId as string;
 
   useEffect(() => {
-    // If user is not in a room or in wrong room, redirect
-    if (isConnected && (!currentRoom || currentRoom.id !== roomId)) {
-      router.push('/');
-    }
+    // Give a brief moment for rejoin to complete, then redirect if needed
+    const timeoutId = setTimeout(() => {
+      if (isConnected && (!currentRoom || currentRoom.id !== roomId)) {
+        router.push('/');
+      }
+    }, 2000); // Wait 2 seconds for potential rejoin
+
+    return () => clearTimeout(timeoutId);
   }, [currentRoom, roomId, router, isConnected]);
 
   const handleLeaveRoom = () => {

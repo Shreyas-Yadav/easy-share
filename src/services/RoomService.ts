@@ -129,6 +129,23 @@ export class RoomService {
     // Delete all room messages (this will also clean up Firebase Storage)
     await this.messageService.deleteRoomMessages(roomId);
 
+    // Delete all room bills (this will also clean up associated data)
+    // Note: We'll need to inject BillService or call it via factory
+    try {
+      const { RepositoryFactory } = await import('../factories/RepositoryFactory');
+      const { ServiceFactory } = await import('../factories/ServiceFactory');
+      const { redisdb } = await import('../utils/redisdb');
+      
+      const repositoryFactory = RepositoryFactory.getInstance(redisdb);
+      const serviceFactory = ServiceFactory.getInstance(repositoryFactory);
+      const billService = serviceFactory.createBillService();
+      
+      await billService.deleteRoomBills(roomId);
+    } catch (error) {
+      console.error('Error deleting room bills:', error);
+      // Continue with room deletion even if bill deletion fails
+    }
+
     // Update participants to offline and remove from room
     for (const participant of room.participants) {
       await this.userSessionRepository.updateUserRoom(participant.userId, undefined);
