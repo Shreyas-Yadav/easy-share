@@ -38,6 +38,8 @@ export default async function RootLayout({
   const headersList = await headers()
   const pathname = headersList.get('x-pathname') || ''
   const isSignInPage = pathname.includes('/sign-in')
+  const isRoomPage = pathname.includes('/room/')
+  const isDashboardPage = pathname === '/' || pathname === ''
 
   return (
     <ClerkProvider>
@@ -53,9 +55,9 @@ export default async function RootLayout({
             <SignedIn>
               <div className="lg:pl-72">
                 {/* Top header for mobile/desktop */}
-                {!isSignInPage && (
+                {!isSignInPage && !isRoomPage && !isDashboardPage && (
                   <header className="flex justify-between items-center p-4 bg-white border-b border-gray-200 lg:justify-end">
-                    <div className="lg:hidden">
+                    <div className="lg:hidden ">
                       {/* Mobile header content - hamburger is in Sidebar component */}
                       <h1 className="text-lg font-semibold text-gray-900 ml-12">EasyShare</h1>
                     </div>
@@ -87,7 +89,7 @@ export default async function RootLayout({
             <SignedOut>
               <div className="">
                 {/* Top header for mobile/desktop */}
-                {!isSignInPage && (
+                {!isSignInPage && !isRoomPage && !isDashboardPage && (
                   <header className="flex justify-between items-center p-4 bg-white border-b border-gray-200 lg:justify-end">
                     <div className="lg:hidden">
                       {/* Mobile header content */}
@@ -126,6 +128,7 @@ export default async function RootLayout({
             pauseOnHover={DEFAULT_TOAST_CONFIG.pauseOnHover}
             theme={DEFAULT_TOAST_CONFIG.theme}
             className="!z-[9999]"
+            limit={3}
           />
         </body>
       </html>

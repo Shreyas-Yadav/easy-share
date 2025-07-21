@@ -126,24 +126,23 @@ export class RedisMessageRepository implements IMessageRepository {
   }
 
   async deleteRoomMessages(roomId: string): Promise<void> {
-    console.log('=== DELETING ALL ROOM MESSAGES ===');
-    console.log('Room ID:', roomId);
-
     try {
       // Get all messages for the room
       const messages = await this.findByRoomId(roomId, 1000, 0); // Get a large number to ensure all messages
-      console.log(`Found ${messages.length} messages to delete`);
 
       // Delete each message individually
       for (const message of messages) {
         await this.delete(message.id);
       }
 
-      // Also clean up the room messages list key
-      const roomMessagesKey = `room:${roomId}:messages`;
+      // Clean up the room messages list key
+      const roomMessagesKey = this.getRoomMessagesKey(roomId);
       await this.redis.del(roomMessagesKey);
 
-      console.log(`Successfully deleted ${messages.length} messages for room ${roomId}`);
+      // Clean up the message count key
+      const countKey = this.getMessageCountKey(roomId);
+      await this.redis.del(countKey);
+
     } catch (error) {
       console.error('Error deleting room messages:', error);
       throw error;

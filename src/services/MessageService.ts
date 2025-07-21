@@ -120,13 +120,6 @@ export class MessageService {
     contentType: string;
   }): Promise<ImageMessage> {
     try {
-      console.log('uploadAndSendImageFromBuffer called with:', {
-        roomId: messageData.roomId,
-        fileName: messageData.fileName,
-        contentType: messageData.contentType,
-        bufferSize: messageData.buffer instanceof Buffer ? messageData.buffer.length : messageData.buffer.byteLength
-      });
-
       // Validate room exists and user has access
       await this.validateRoomAccess(messageData.roomId, messageData.userId);
 
@@ -138,8 +131,6 @@ export class MessageService {
         messageData.contentType, 
         folder
       );
-
-      console.log('Upload result:', uploadResult);
 
       // Create and store the message with Firebase URL
       const message: ImageMessage = {
@@ -157,10 +148,8 @@ export class MessageService {
       };
 
       await this.messageRepository.create(message);
-      console.log('Message created and stored:', message.id);
       return message;
     } catch (error) {
-      console.error('Error in uploadAndSendImageFromBuffer:', error);
       if (error instanceof StorageError) {
         throw new ConflictError(`Image upload failed: ${error.message}`);
       }
@@ -356,38 +345,46 @@ export class MessageService {
       throw new NotFoundError('Room', roomId);
     }
 
-    // Get all messages for the room and delete associated files
+    // Get all messages for the room
     const messages = await this.messageRepository.findByRoomId(roomId, 1000, 0);
+    
+    // First, collect all Firebase file URLs that need to be deleted
+    const firebaseFilesToDelete: string[] = [];
+    
     for (const message of messages) {
       if (message.type === 'image') {
-        try {
-          const imageMessage = message as ImageMessage;
-          await this.storageService.deleteFile(imageMessage.imageUrl);
-        } catch (error) {
-          console.warn(`Failed to delete image from storage: ${error}`);
+        const imageMessage = message as ImageMessage;
+        if (imageMessage.imageUrl && imageMessage.imageUrl.includes('firebasestorage.googleapis.com')) {
+          firebaseFilesToDelete.push(imageMessage.imageUrl);
         }
       } else if (message.type === 'file') {
-        try {
-          const fileMessage = message as FileMessage;
-          await this.storageService.deleteFile(fileMessage.downloadUrl);
-        } catch (error) {
-          console.warn(`Failed to delete file from storage: ${error}`);
+        const fileMessage = message as FileMessage;
+        if (fileMessage.downloadUrl && fileMessage.downloadUrl.includes('firebasestorage.googleapis.com')) {
+          firebaseFilesToDelete.push(fileMessage.downloadUrl);
         }
       }
-      await this.messageRepository.delete(message.id);
+    }
+    
+    // Step 1: Delete all messages from Redis first
+    await this.messageRepository.deleteRoomMessages(roomId);
+    
+    // Step 2: Clean up Firebase Storage files
+    for (const fileUrl of firebaseFilesToDelete) {
+      try {
+        await this.storageService.deleteFile(fileUrl);
+      } catch (error) {
+        console.error(`Failed to delete Firebase file: ${fileUrl}`, error);
+      }
     }
   }
 
-  async searchMessages(roomId: string, query: string, limit: number = 20): Promise<Message[]> {
-    // This is a simple implementation. In production, you might want to use 
-    // a full-text search engine like Elasticsearch
-    const messages = await this.messageRepository.findByRoomId(roomId, 1000, 0);
+  async searchMessages(roomId: string, query: string, limit: number = 50): Promise<Message[]> {
+    const allMessages = await this.messageRepository.findByRoomId(roomId, 1000, 0);
     
-    const searchTerm = query.toLowerCase();
-    return messages
+    return allMessages
       .filter(message => 
-        message.content.toLowerCase().includes(searchTerm) ||
-        message.userName.toLowerCase().includes(searchTerm)
+        message.content.toLowerCase().includes(query.toLowerCase()) ||
+        message.userName.toLowerCase().includes(query.toLowerCase())
       )
       .slice(0, limit);
   }

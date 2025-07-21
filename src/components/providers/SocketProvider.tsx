@@ -103,7 +103,6 @@ export function SocketProvider({ children }: SocketProviderProps) {
           setParticipants(data.room.participants);
           setMessages([]);
           setIsLoading(false);
-          roomToast.roomJoined(data.room.name);
           router.push(`/room/${data.room.id}`);
         });
 
@@ -150,10 +149,6 @@ export function SocketProvider({ children }: SocketProviderProps) {
             }
             return [...prev, participant];
           });
-          
-          // Show user joined notification
-          const userName = `${participant.firstName} ${participant.lastName}`.trim();
-          userToast.userJoined(userName);
         });
 
         newSocket.on('user:left', (userId) => {
@@ -162,12 +157,6 @@ export function SocketProvider({ children }: SocketProviderProps) {
           setParticipants(prev => 
             prev.map(p => p.userId === userId ? { ...p, isOnline: false } : p)
           );
-          
-          // Show user left notification
-          if (leavingUser) {
-            const userName = `${leavingUser.firstName} ${leavingUser.lastName}`.trim();
-            userToast.userLeft(userName);
-          }
         });
 
         newSocket.on('user:typing', (data) => {
@@ -314,7 +303,6 @@ export function SocketProvider({ children }: SocketProviderProps) {
     setMessages([]);
     setParticipants([]);
     setTypingUsers({});
-    roomToast.roomLeft();
     router.push('/');
   }, [socket, currentRoom, router]);
 
@@ -490,11 +478,8 @@ export function SocketProvider({ children }: SocketProviderProps) {
       console.log('4. SUCCESS: Image uploaded and message broadcasted');
       setUploadProgress(100);
 
-      // Update the upload toast to success
-      messageToast.update(uploadToastId, { 
-        render: 'Image uploaded successfully!', 
-        type: 'success' 
-      });
+      // Dismiss the upload toast without showing success message
+      messageToast.dismiss(uploadToastId);
 
       // Reset progress after short delay
       setTimeout(() => {

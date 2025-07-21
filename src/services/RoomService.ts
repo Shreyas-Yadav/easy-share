@@ -1,12 +1,14 @@
 import type { Room, RoomParticipant, Message } from '../types/room';
 import type { IRoomRepository, IMessageRepository, IUserSessionRepository } from '../types/repositories';
+import type { MessageService } from './MessageService';
 import { NotFoundError, ConflictError } from '../types/repositories';
 
 export class RoomService {
   constructor(
     private readonly roomRepository: IRoomRepository,
     private readonly messageRepository: IMessageRepository,
-    private readonly userSessionRepository: IUserSessionRepository
+    private readonly userSessionRepository: IUserSessionRepository,
+    private readonly messageService: MessageService
   ) {}
 
   async createRoom(roomData: {
@@ -113,9 +115,6 @@ export class RoomService {
   }
 
   async deleteRoom(roomId: string, requestingUserId: string): Promise<void> {
-    console.log('=== DELETING ROOM ===');
-    console.log('Room ID:', roomId, 'Requesting User:', requestingUserId);
-
     // Get room to verify creator
     const room = await this.roomRepository.findById(roomId);
     if (!room) {
@@ -127,23 +126,16 @@ export class RoomService {
       throw new ConflictError('Only the room creator can delete the room');
     }
 
-    console.log('1. Authorization passed, room creator confirmed');
-
     // Delete all room messages (this will also clean up Firebase Storage)
-    console.log('2. Deleting all room messages and images...');
-    await this.messageRepository.deleteRoomMessages(roomId);
+    await this.messageService.deleteRoomMessages(roomId);
 
     // Update participants to offline and remove from room
-    console.log('3. Updating participants...');
     for (const participant of room.participants) {
       await this.userSessionRepository.updateUserRoom(participant.userId, undefined);
     }
 
     // Delete the room itself
-    console.log('4. Deleting room from Redis...');
     await this.roomRepository.delete(roomId);
-
-    console.log('5. Room deletion completed successfully');
   }
 
   async getActiveRooms(): Promise<Room[]> {

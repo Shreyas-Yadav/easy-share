@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useSocket } from '../providers/SocketProvider';
-import { userToast } from '@/services/ToastService';
+import RoomActionsMenu from './RoomActionsMenu';
 import type { Room } from '../../types/room';
 
 interface RoomHeaderProps {
@@ -20,6 +20,7 @@ export default function RoomHeader({
 }: RoomHeaderProps) {
   const { deleteRoom, currentUserId } = useSocket();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
   
   // Check if current user is the room creator
   const isRoomCreator = currentUserId === room.createdBy;
@@ -27,10 +28,12 @@ export default function RoomHeader({
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      userToast.copyToClipboard();
+      setCopySuccess(true);
+      // Reset icon after 2 seconds
+      setTimeout(() => setCopySuccess(false), 2000);
     } catch (err) {
       console.error('Failed to copy to clipboard:', err);
-      userToast.copyFailed();
+      // Could optionally show a brief error state or keep the original behavior
     }
   };
 
@@ -57,9 +60,9 @@ export default function RoomHeader({
       <div className="bg-white border-b border-gray-200 px-4 py-3">
         <div className="flex items-center justify-between">
           {/* Room Info */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-4 lg:ml-0 ml-10">
             <div>
-              <h1 className="text-lg font-semibold text-gray-900">{room.name}</h1>
+              <div className="text-lg font-semibold text-gray-900">{room.name}</div>
               <div className="flex items-center space-x-4 text-sm text-gray-500">
                 <span>Code: {room.code}</span>
                 <span>{participantCount} participant{participantCount !== 1 ? 's' : ''}</span>
@@ -69,51 +72,59 @@ export default function RoomHeader({
 
           {/* Action Buttons */}
           <div className="flex items-center space-x-3">
-            {/* Share Room Button */}
-            <button
-              onClick={handleShareRoom}
-              className="text-gray-400 hover:text-indigo-600 p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              title="Copy room code"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-            </button>
+            {/* Mobile Actions Menu */}
+            <RoomActionsMenu
+              onCopyCode={handleShareRoom}
+              onToggleParticipants={onToggleParticipants}
+              onDeleteRoom={isRoomCreator ? handleDeleteRoom : undefined}
+              onLeaveRoom={onLeaveRoom}
+              copySuccess={copySuccess}
+              isRoomCreator={isRoomCreator}
+            />
 
-            {/* Participants Toggle */}
-            <button
-              onClick={onToggleParticipants}
-              className="lg:hidden text-gray-400 hover:text-indigo-600 p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              title="Show participants"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-            </button>
-
-            {/* Delete Room Button (Only for Room Creator) */}
-            {isRoomCreator && (
+            {/* Desktop Action Buttons */}
+            <div className="hidden lg:flex items-center space-x-3">
+              {/* Share Room Button */}
               <button
-                onClick={handleDeleteRoom}
+                onClick={handleShareRoom}
+                className="text-gray-400 hover:text-indigo-600 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                title={copySuccess ? "Copied!" : "Copy room code"}
+              >
+                {copySuccess ? (
+                  <svg className="h-5 w-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                ) : (
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                )}
+              </button>
+
+              {/* Delete Room Button (Only for Room Creator) */}
+              {isRoomCreator && (
+                <button
+                  onClick={handleDeleteRoom}
+                  className="text-gray-400 hover:text-red-600 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                  title="Delete room"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              )}
+
+              {/* Leave Room Button */}
+              <button
+                onClick={onLeaveRoom}
                 className="text-gray-400 hover:text-red-600 p-2 rounded-lg hover:bg-red-50 transition-colors"
-                title="Delete room"
+                title="Leave room"
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
               </button>
-            )}
-
-            {/* Leave Room Button */}
-            <button
-              onClick={onLeaveRoom}
-              className="text-gray-400 hover:text-red-600 p-2 rounded-lg hover:bg-red-50 transition-colors"
-              title="Leave room"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-            </button>
+            </div>
           </div>
         </div>
       </div>
@@ -129,7 +140,7 @@ export default function RoomHeader({
                 </svg>
               </div>
               <div className="ml-3">
-                <h3 className="text-lg font-medium text-gray-900">Delete Room</h3>
+                <div className="text-lg font-medium text-gray-900">Delete Room</div>
               </div>
             </div>
             

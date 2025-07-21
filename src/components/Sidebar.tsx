@@ -20,20 +20,21 @@ export default function Sidebar() {
       <div className={`fixed inset-0 z-50 lg:hidden transition-opacity duration-300 ${sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
         <div className="fixed inset-0 bg-gray-600 bg-opacity-75 transition-opacity duration-300" onClick={() => setSidebarOpen(false)} />
         <div className={`relative flex w-full max-w-xs h-screen flex-col bg-white rounded-r-xl transform transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-          <div className="absolute right-0 top-0 -mr-12 pt-2">
-            <button
-              type="button"
-              className="ml-1 flex h-10 w-10 items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
-              onClick={() => setSidebarOpen(false)}
-            >
-              <span className="sr-only">Close sidebar</span>
-              <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
           <div className="flex grow flex-col gap-y-5 overflow-y-auto px-6 pb-4">
-            <SidebarContent user={user} />
+            {/* Close button inside sidebar */}
+            <div className="flex justify-end pt-4">
+              <button
+                type="button"
+                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
+                onClick={() => setSidebarOpen(false)}
+              >
+                <span className="sr-only">Close sidebar</span>
+                <svg className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <SidebarContent user={user} onNavigate={() => setSidebarOpen(false)} />
           </div>
         </div>
       </div>
@@ -41,7 +42,7 @@ export default function Sidebar() {
       {/* Static sidebar for desktop */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
         <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-6 pb-4">
-          <SidebarContent user={user} />
+          <SidebarContent user={user} onNavigate={() => setSidebarOpen(false)} />
         </div>
       </div>
 
@@ -62,7 +63,7 @@ export default function Sidebar() {
   )
 }
 
-function SidebarContent({ user }: { user: any }) { // eslint-disable-line @typescript-eslint/no-explicit-any
+function SidebarContent({ user, onNavigate }: { user: any; onNavigate: () => void }) { // eslint-disable-line @typescript-eslint/no-explicit-any
   return (
     <>
       {/* Logo/Brand */}
@@ -106,6 +107,7 @@ function SidebarContent({ user }: { user: any }) { // eslint-disable-line @types
                 <li key={item.name}>
                   <Link
                     href={item.href}
+                    onClick={onNavigate}
                     className={`group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors duration-200 ${
                       item.current
                         ? 'bg-indigo-50 text-indigo-600'

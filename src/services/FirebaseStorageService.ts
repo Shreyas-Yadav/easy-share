@@ -65,7 +65,6 @@ export class FirebaseStorageService implements IStorageService {
 
   async uploadFile(file: File, folder: string = 'files', options?: UploadOptions): Promise<UploadResult> {
     try {
-      console.log('Starting file upload:', file.name, 'Size:', file.size, 'Type:', file.type);
       
       // Apply default options
       const uploadOptions: UploadOptions = {
@@ -86,15 +85,11 @@ export class FirebaseStorageService implements IStorageService {
       const path = `${folder}/${fileName}`;
       const storageRef = ref(this.storage, path);
 
-      console.log('Uploading to Firebase Storage path:', path);
-
       // Upload file
       const snapshot = await uploadBytes(storageRef, file);
-      console.log('Upload successful, snapshot:', snapshot.metadata.name);
       
       // Get download URL
       const url = await getDownloadURL(snapshot.ref);
-      console.log('Download URL generated:', url);
 
       return {
         url,
@@ -122,7 +117,6 @@ export class FirebaseStorageService implements IStorageService {
     options?: UploadOptions
   ): Promise<UploadResult> {
     try {
-      console.log('Starting buffer upload:', fileName, 'Type:', contentType);
       
       // Apply default options
       const uploadOptions: UploadOptions = {
@@ -148,17 +142,13 @@ export class FirebaseStorageService implements IStorageService {
       const path = `${folder}/${finalFileName}`;
       const storageRef = ref(this.storage, path);
 
-      console.log('Uploading buffer to Firebase Storage path:', path);
-
       // Upload buffer as Uint8Array
       const snapshot = await uploadBytes(storageRef, uint8Array, {
         contentType: contentType
       });
-      console.log('Buffer upload successful, snapshot:', snapshot.metadata.name);
       
       // Get download URL
       const url = await getDownloadURL(snapshot.ref);
-      console.log('Download URL generated:', url);
 
       return {
         url,
@@ -251,17 +241,28 @@ export class FirebaseStorageService implements IStorageService {
     try {
       // Firebase Storage URLs have format: 
       // https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{path}?alt=media&token={token}
+      // where {path} is URL-encoded
       const urlObj = new URL(url);
-      const pathParam = urlObj.searchParams.get('path') || 
-                       decodeURIComponent(urlObj.pathname.split('/o/')[1]?.split('?')[0] || '');
       
-      if (!pathParam) {
-        throw new Error('Invalid Firebase Storage URL');
+      // Extract the encoded path from the pathname
+      // Example: /v0/b/bucket/o/rooms%2FroomId%2Fimages%2Ffile.jpg
+      const pathParts = urlObj.pathname.split('/o/');
+      if (pathParts.length < 2) {
+        throw new Error('Invalid Firebase Storage URL format - missing /o/ segment');
       }
       
-      return pathParam;
-    } catch {
-      throw new StorageError(`Invalid storage URL: ${url}`, 'INVALID_URL');
+      // Get the encoded path and decode it
+      const encodedPath = pathParts[1].split('?')[0]; // Remove query params if any
+      const decodedPath = decodeURIComponent(encodedPath);
+      
+      if (!decodedPath) {
+        throw new Error('Could not extract path from Firebase Storage URL');
+      }
+      
+      return decodedPath;
+    } catch (error) {
+      console.error('Error extracting path from Firebase URL:', error);
+      throw new StorageError(`Invalid storage URL: ${url}. Error: ${(error as Error).message}`, 'INVALID_URL');
     }
   }
 

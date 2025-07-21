@@ -68,7 +68,7 @@ export default function MessageList({ messages }: MessageListProps) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-1">
+    <div className="h-full overflow-y-auto p-4 pb-4 space-y-1">
       {messages.map((message, index) => {
         const previousMessage = index > 0 ? messages[index - 1] : undefined;
         const showDateSeparator = shouldShowDateSeparator(message, previousMessage);
@@ -202,7 +202,7 @@ export default function MessageList({ messages }: MessageListProps) {
           </div>
         );
       })}
-      <div ref={messagesEndRef} />
+      <div ref={messagesEndRef} className="h-4" />
     </div>
   );
 } 

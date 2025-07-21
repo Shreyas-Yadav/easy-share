@@ -69,14 +69,14 @@ export default function RoomPage() {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Chat Area */}
-        <div className="flex-1 flex flex-col bg-white">
+        <div className="flex-1 flex flex-col bg-white overflow-hidden">
           {/* Messages */}
           <div className="flex-1 overflow-hidden">
             <MessageList messages={messages} />
           </div>
 
           {/* Message Input */}
-          <div className="border-t border-gray-200">
+          <div className="flex-shrink-0 border-t border-gray-200">
             <MessageInput />
           </div>
         </div>
@@ -99,14 +99,15 @@ export default function RoomPage() {
               <h2 className="text-lg font-semibold text-gray-800">Participants</h2>
               <button
                 onClick={() => setShowParticipants(false)}
-                className="p-1 hover:bg-gray-200 rounded-lg"
+                className="p-2 hover:bg-gray-200 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                title="Close participants"
               >
-                <svg className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <ParticipantsList participants={participants} />
+            <ParticipantsList participants={participants} showHeader={false} />
           </div>
         </div>
       )}

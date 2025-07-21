@@ -5,9 +5,10 @@ import type { RoomParticipant } from '../../types/room';
 
 interface ParticipantsListProps {
   participants: RoomParticipant[];
+  showHeader?: boolean;
 }
 
-export default function ParticipantsList({ participants }: ParticipantsListProps) {
+export default function ParticipantsList({ participants, showHeader = true }: ParticipantsListProps) {
   const onlineParticipants = participants.filter(p => p.isOnline);
   const offlineParticipants = participants.filter(p => !p.isOnline);
 
@@ -74,14 +75,16 @@ export default function ParticipantsList({ participants }: ParticipantsListProps
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-800">
-          Participants ({participants.length})
-        </h2>
-        <p className="text-sm text-gray-600">
-          {onlineParticipants.length} online, {offlineParticipants.length} offline
-        </p>
-      </div>
+      {showHeader && (
+        <div className="p-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-800">
+            Participants ({participants.length})
+          </h2>
+          <p className="text-sm text-gray-600">
+            {onlineParticipants.length} online, {offlineParticipants.length} offline
+          </p>
+        </div>
+      )}
 
       {/* Participants List */}
       <div className="flex-1 overflow-y-auto">

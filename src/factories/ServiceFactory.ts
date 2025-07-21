@@ -25,11 +25,13 @@ export class ServiceFactory {
       const roomRepository = this.repositoryFactory.createRoomRepository();
       const messageRepository = this.repositoryFactory.createMessageRepository();
       const userSessionRepository = this.repositoryFactory.createUserSessionRepository();
+      const messageService = this.createMessageService(); // Create MessageService dependency
       
       this.roomService = new RoomService(
         roomRepository,
         messageRepository,
-        userSessionRepository
+        userSessionRepository,
+        messageService
       );
     }
     return this.roomService;
