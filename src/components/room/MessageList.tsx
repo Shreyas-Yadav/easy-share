@@ -566,6 +566,7 @@ export default function MessageList({ messages }: MessageListProps) {
       {/* Persisted Bills Section */}
       {persistedBills.length > 0 && (
         <div className="mt-4 p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+          <h3 className="text-lg font-bold text-gray-900 mb-3">💾 Previous Extractions</h3>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -598,26 +599,10 @@ export default function MessageList({ messages }: MessageListProps) {
                      </td>
                     <td className="px-3 py-2 text-center">
                       <button
-                        onClick={() => {
-                          if (currentBillId === bill.id) {
-                            // If this bill is already expanded, collapse it
-                            closeBillData();
-                          } else {
-                            // Otherwise, expand this bill
-                            displayPersistedBill(bill);
-                          }
-                        }}
-                        className="text-indigo-600 hover:text-indigo-800 p-2 rounded-md hover:bg-indigo-50 transition-colors"
+                        onClick={() => displayPersistedBill(bill)}
+                        className="text-indigo-600 hover:text-indigo-800 text-xs font-medium"
                       >
-                        {currentBillId === bill.id ? (
-                          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                          </svg>
-                        ) : (
-                          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        )}
+                        Load
                       </button>
                     </td>
                   </tr>
@@ -630,7 +615,7 @@ export default function MessageList({ messages }: MessageListProps) {
 
       {/* Bill Data Table */}
       {billData && (
-        <div className={`p-4 bg-white border border-gray-200 rounded-lg shadow-sm ${persistedBills.length > 0 ? '-mt-2 border-t-0 rounded-t-none' : 'mt-4'}`}>
+        <div className="mt-4 p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
           {'error' in billData ? (
             <div className="bg-red-50 border border-red-200 rounded-md p-4">
               <div className="flex">

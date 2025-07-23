@@ -41,7 +41,6 @@ export interface IUserSessionRepository {
   setSocketData(socketId: string, userData: SocketData): Promise<void>;
   getSocketData(socketId: string): Promise<SocketData | null>;
   removeSocketData(socketId: string): Promise<void>;
-  removeAllSocketDataForUser(userId: string): Promise<number>;
   getAllActiveUsers(): Promise<SocketData[]>;
   isUserOnline(userId: string): Promise<boolean>;
   getUsersInRoom(roomId: string): Promise<SocketData[]>;
