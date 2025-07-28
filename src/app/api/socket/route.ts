@@ -503,6 +503,56 @@ export async function GET() {
         }
       });
 
+      // Bill participants updates
+      socket.on('bill:updateParticipants', async (data) => {
+        console.log('=== BILL PARTICIPANTS UPDATE REQUEST ===');
+        console.log('Bill participants update:', {
+          billId: data.billId,
+          billParticipants: data.billParticipants
+        });
+
+        try {
+          const userData = await userSessionService.getUserBySocketId(socket.id);
+          console.log('User data for bill participants update:', {
+            hasUserData: !!userData,
+            userId: userData?.userId,
+            userName: userData?.userName,
+            userRoomId: userData?.roomId,
+            socketId: socket.id
+          });
+
+          if (!userData) {
+            console.error('User validation failed for bill participants update');
+            return;
+          }
+
+          console.log('Processing bill participants update for user:', userData.userName);
+
+          // Update bill participants using BillService
+          const updatedBill = await billService.updateBillParticipants(
+            data.billId,
+            data.billParticipants,
+            userData.userId
+          );
+
+          console.log('Bill participants update completed successfully');
+
+          // Broadcast the updated bill to all users in the room
+          if (userData.roomId) {
+            console.log('Broadcasting bill participants update to room:', userData.roomId);
+            io.to(userData.roomId).emit('bill:updated', updatedBill);
+            console.log('SUCCESS: Bill participants update broadcasted to room', userData.roomId);
+          } else {
+            console.error('User not in a room, cannot broadcast bill participants update');
+            console.error('User data:', userData);
+          }
+        } catch (error) {
+          console.error('=== BILL PARTICIPANTS UPDATE ERROR ===');
+          console.error('Error details:', error);
+          socket.emit('room:error', 'Bill participants update failed');
+        }
+      });
+
       // Typing indicator
       socket.on('user:typing', async (data) => {
         try {

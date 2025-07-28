@@ -1,5 +1,5 @@
 import { Socket } from 'socket.io-client';
-import type { BillExtraction } from './models';
+import type { BillExtraction, BillParticipant } from './models';
 
 export interface Room {
   id: string;
@@ -113,6 +113,7 @@ export interface ClientToServerEvents {
   // Bill extraction events
   'bill:extract': (data: { roomId: string; imageUrl: string; imageName: string }) => void;
   'bill:update': (data: { billId: string; itemAssignments: Record<number, string[]> }) => void;
+  'bill:updateParticipants': (data: { billId: string; billParticipants: BillParticipant[] }) => void;
 }
 
 export interface InterServerEvents {

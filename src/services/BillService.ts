@@ -1,4 +1,4 @@
-import type { BillExtraction } from '../types/models';
+import type { BillExtraction, BillParticipant } from '../types/models';
 import type { IBillRepository, IRoomRepository } from '../types/repositories';
 import { NotFoundError, ConflictError } from '../types/repositories';
 import { extractBillFromImage } from '../utils/billExtraction';
@@ -37,6 +37,7 @@ export class BillService {
       imageName: data.imageName,
       billData,
       itemAssignments: {}, // Empty initially
+      billParticipants: [], // Empty initially - room creator will add participants
       extractedAt: new Date(),
       updatedAt: new Date(),
     };
@@ -69,8 +70,73 @@ export class BillService {
       throw new ConflictError('You must be a room participant to update bill assignments');
     }
 
+    // Permission checks for bill assignment updates
+    const isRoomCreator = room.createdBy === userId;
+    
+    if (!isRoomCreator) {
+      // For regular participants, validate they're only modifying their own assignments
+      const currentAssignments = bill.itemAssignments || {};
+      
+      for (const [itemIndex, assignedUsers] of Object.entries(itemAssignments)) {
+        const currentUsers = currentAssignments[parseInt(itemIndex)] || [];
+        const newUsers = assignedUsers || [];
+        
+        // Check if any changes involve other users
+        const addedUsers = newUsers.filter(user => !currentUsers.includes(user));
+        const removedUsers = currentUsers.filter(user => !newUsers.includes(user));
+        
+        // Participants can only add/remove themselves
+        for (const addedUser of addedUsers) {
+          if (addedUser !== userId) {
+            throw new ConflictError('You can only assign/unassign yourself to bill items');
+          }
+        }
+        
+        for (const removedUser of removedUsers) {
+          if (removedUser !== userId) {
+            throw new ConflictError('You can only assign/unassign yourself to bill items');
+          }
+        }
+      }
+    }
+    // Room creators have full permission to edit all assignments
+
     // Update assignments
     bill.itemAssignments = itemAssignments;
+    bill.updatedAt = new Date();
+    // Explicitly preserve billParticipants during item assignment updates
+    // This ensures checkboxes don't clear the participant columns
+    if (!bill.billParticipants) {
+      bill.billParticipants = []; // Ensure it's always an array
+    }
+
+    await this.billRepository.update(bill);
+    return bill;
+  }
+
+  async updateBillParticipants(
+    billId: string,
+    billParticipants: BillParticipant[],
+    userId: string
+  ): Promise<BillExtraction> {
+    const bill = await this.billRepository.findById(billId);
+    if (!bill) {
+      throw new NotFoundError('Bill extraction', billId);
+    }
+
+    // Verify room exists and user has access
+    const room = await this.roomRepository.findById(bill.roomId);
+    if (!room) {
+      throw new NotFoundError('Room', bill.roomId);
+    }
+
+    // Only room creator can manage bill participants
+    if (room.createdBy !== userId) {
+      throw new ConflictError('Only the room creator can manage bill participants');
+    }
+
+    // Update bill participants
+    bill.billParticipants = billParticipants;
     bill.updatedAt = new Date();
 
     await this.billRepository.update(bill);

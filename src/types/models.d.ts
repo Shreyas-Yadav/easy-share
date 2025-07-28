@@ -35,8 +35,18 @@ export interface BillExtraction {
   imageName: string;
   billData: BillData;
   itemAssignments: Record<number, string[]>; // itemIndex -> userId[]
+  billParticipants: BillParticipant[]; // Users included in bill splitting
   extractedAt: Date;
   updatedAt: Date;
+}
+
+// Simplified participant data for bill splitting (persists even if user leaves room)
+export interface BillParticipant {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  imageUrl: string;
 }
 
 // Bill splitting types

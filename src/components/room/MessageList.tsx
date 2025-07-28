@@ -8,6 +8,8 @@ import { useSocket } from '../providers/SocketProvider';
 import ContextMenu from '../ui/ContextMenu';
 import type { ContextMenuItem } from '../ui/ContextMenu';
 import { ToastServiceFactory } from '../../services/ToastService';
+import type { RoomParticipant } from '../../types/room';
+import type { BillParticipant } from '../../types/models';
 
 interface MessageListProps {
   messages: Message[];
@@ -42,6 +44,55 @@ export default function MessageList({ messages }: MessageListProps) {
 
   // Get online participants for bill splitting
   const onlineParticipants = participants.filter(p => p.isOnline);
+
+  // New state for bill participants - separate from room participants
+  // This allows room creator to control who's included in bill splitting
+  const [billParticipants, setBillParticipants] = useState<BillParticipant[]>([]);
+  
+  // Available participants that can be added to bill (not already in bill)
+  const availableParticipants = participants.filter(p => 
+    !billParticipants.some(bp => bp.userId === p.userId)
+  );
+
+  // Convert RoomParticipant to BillParticipant
+  const convertToBillParticipant = (participant: RoomParticipant): BillParticipant => ({
+    userId: participant.userId,
+    firstName: participant.firstName,
+    lastName: participant.lastName,
+    email: participant.email,
+    imageUrl: participant.imageUrl,
+  });
+
+  // Save bill participants to backend
+  const saveBillParticipants = async (billId: string, participants: BillParticipant[]) => {
+    if (!currentUserId || !socket) {
+      console.log('Cannot save bill participants:', { 
+        hasCurrentUserId: !!currentUserId, 
+        hasSocket: !!socket 
+      });
+      return;
+    }
+    
+    try {
+      console.log('Saving bill participants via socket:', { 
+        billId, 
+        participants,
+        currentUserId,
+        socketConnected: socket.connected
+      });
+      
+      // Use socket event for real-time bill participants updates
+      socket.emit('bill:updateParticipants', {
+        billId,
+        billParticipants: participants
+      });
+
+      console.log('Bill participants update sent via socket');
+    } catch (error) {
+      console.error('Error saving bill participants:', error);
+      ToastServiceFactory.getGeneralToastService().error('Failed to save bill participants');
+    }
+  };
 
   // Load persisted bills when room changes
   useEffect(() => {
@@ -84,6 +135,7 @@ export default function MessageList({ messages }: MessageListProps) {
         setBillData(billExtraction.billData);
         setCurrentBillId(billExtraction.id);
         setItemAssignments(billExtraction.itemAssignments || {});
+        setBillParticipants(billExtraction.billParticipants || []); // Start with empty participants
         setIsExtracting(false);
         billToast.billExtractionSuccess();
       }
@@ -99,7 +151,10 @@ export default function MessageList({ messages }: MessageListProps) {
         currentUserId,
         currentBillId,
         isCurrentUser: billExtraction.userId === currentUserId,
-        isCurrentBill: currentBillId === billExtraction.id
+        isCurrentBill: currentBillId === billExtraction.id,
+        hasParticipants: !!(billExtraction.billParticipants && billExtraction.billParticipants.length > 0),
+        participantsCount: billExtraction.billParticipants?.length || 0,
+        currentParticipantsCount: billParticipants.length
       });
       
       // Update the persisted bills list
@@ -113,8 +168,17 @@ export default function MessageList({ messages }: MessageListProps) {
       
       // If this is the currently displayed bill, update it
       if (currentBillId === billExtraction.id) {
-        console.log('Updating current bill assignments');
+        console.log('Updating current bill assignments and participants');
         setItemAssignments(billExtraction.itemAssignments || {});
+        
+        // Always preserve billParticipants - they should only be updated via explicit participant management
+        // Item assignment updates should never clear participants
+        if (billExtraction.billParticipants !== undefined) {
+          setBillParticipants(billExtraction.billParticipants);
+          console.log('Updated bill participants:', billExtraction.billParticipants.length);
+        } else {
+          console.log('No billParticipants in update - preserving current state');
+        }
       } else {
         console.log('Bill update received but not for currently displayed bill');
       }
@@ -288,11 +352,20 @@ export default function MessageList({ messages }: MessageListProps) {
   const closeBillData = () => {
     setBillData(null);
     setItemAssignments({});
+    setBillParticipants([]); // Clear bill participants
     setCurrentBillId(null); // Reset current bill ID
   };
 
   // Handle checkbox changes for item assignments
   const handleItemAssignment = (itemIndex: number, userId: string, isChecked: boolean) => {
+    // Permission check: only room creator can edit all assignments, others can only edit their own
+    const isRoomCreator = currentRoom?.createdBy === currentUserId;
+    if (!isRoomCreator && userId !== currentUserId) {
+      // Show toast notification for unauthorized action
+      ToastServiceFactory.getGeneralToastService().error('You can only assign/unassign yourself to bill items');
+      return;
+    }
+
     setItemAssignments(prev => {
       const currentAssignments = prev[itemIndex] || [];
       let newAssignments;
@@ -328,8 +401,8 @@ export default function MessageList({ messages }: MessageListProps) {
   const calculateUserTotals = () => {
     const userTotals: Record<string, number> = {};
     
-    // Initialize all participants with 0
-    onlineParticipants.forEach(participant => {
+    // Initialize all bill participants with 0
+    billParticipants.forEach(participant => {
       userTotals[participant.userId] = 0;
     });
     
@@ -356,12 +429,80 @@ export default function MessageList({ messages }: MessageListProps) {
     setBillData(billExtraction.billData);
     setCurrentBillId(billExtraction.id);
     setItemAssignments(billExtraction.itemAssignments || {});
+    
+    // Load bill participants from saved data, fallback to empty array
+    const savedBillParticipants = billExtraction.billParticipants || [];
+    setBillParticipants(savedBillParticipants);
+  };
+
+  // Functions to manage bill participants
+  const addParticipantToBill = (participant: RoomParticipant) => {
+    const isRoomCreator = currentRoom?.createdBy === currentUserId;
+    if (!isRoomCreator) {
+      ToastServiceFactory.getGeneralToastService().error('Only the room creator can manage bill participants');
+      return;
+    }
+
+    setBillParticipants(prev => {
+      if (prev.some(p => p.userId === participant.userId)) {
+        return prev; // Already added
+      }
+      const newParticipants = [...prev, convertToBillParticipant(participant)];
+      
+      // Save to backend if we have a current bill ID
+      if (currentBillId) {
+        saveBillParticipants(currentBillId, newParticipants);
+      }
+      
+      return newParticipants;
+    });
+  };
+
+  const removeParticipantFromBill = (participantId: string) => {
+    const isRoomCreator = currentRoom?.createdBy === currentUserId;
+    if (!isRoomCreator) {
+      ToastServiceFactory.getGeneralToastService().error('Only the room creator can manage bill participants');
+      return;
+    }
+
+    setBillParticipants(prev => {
+      const newParticipants = prev.filter(p => p.userId !== participantId);
+      
+      // Save to backend if we have a current bill ID
+      if (currentBillId) {
+        saveBillParticipants(currentBillId, newParticipants);
+      }
+      
+      return newParticipants;
+    });
+    
+    // Also remove this participant from all item assignments
+    setItemAssignments(prev => {
+      const newAssignments = { ...prev };
+      Object.keys(newAssignments).forEach(itemIndex => {
+        newAssignments[parseInt(itemIndex)] = newAssignments[parseInt(itemIndex)].filter(userId => userId !== participantId);
+      });
+      
+      // Save updated assignments if we have a current bill ID
+      if (currentBillId) {
+        saveBillAssignments(currentBillId, newAssignments);
+      }
+      
+      return newAssignments;
+    });
   };
 
   // Toggle all participants for a specific item
   const toggleAllParticipants = (itemIndex: number) => {
+    // Permission check: only room creator can use Select All functionality
+    const isRoomCreator = currentRoom?.createdBy === currentUserId;
+    if (!isRoomCreator) {
+      ToastServiceFactory.getGeneralToastService().error('Only the room creator can assign/unassign all participants');
+      return;
+    }
+
     const currentAssignments = itemAssignments[itemIndex] || [];
-    const allUserIds = onlineParticipants.map(p => p.userId);
+    const allUserIds = billParticipants.map(p => p.userId);
     
     // If all are selected, deselect all. Otherwise, select all.
     const shouldSelectAll = currentAssignments.length !== allUserIds.length;
@@ -705,7 +846,7 @@ export default function MessageList({ messages }: MessageListProps) {
                             Total
                           </th>
                           {/* Participant columns */}
-                          {onlineParticipants.map(participant => (
+                          {billParticipants.map(participant => (
                             <th key={participant.userId} className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                               <div className="flex flex-col items-center space-y-1">
                                 {participant.imageUrl ? (
@@ -753,24 +894,45 @@ export default function MessageList({ messages }: MessageListProps) {
                               ${item.total_price?.toFixed(2)}
                             </td>
                             {/* Participant checkboxes */}
-                            {onlineParticipants.map(participant => (
-                              <td key={participant.userId} className="px-2 py-2 text-center">
-                                <input
-                                  type="checkbox"
-                                  checked={itemAssignments[index]?.includes(participant.userId) || false}
-                                  onChange={(e) => handleItemAssignment(index, participant.userId, e.target.checked)}
-                                  className="w-4 h-4 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500 focus:ring-2"
-                                />
-                              </td>
-                            ))}
+                            {billParticipants.map(participant => {
+                              const isRoomCreator = currentRoom?.createdBy === currentUserId;
+                              const canEditThisColumn = isRoomCreator || participant.userId === currentUserId;
+                              
+                              return (
+                                <td key={participant.userId} className="px-2 py-2 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={itemAssignments[index]?.includes(participant.userId) || false}
+                                    onChange={(e) => handleItemAssignment(index, participant.userId, e.target.checked)}
+                                    disabled={!canEditThisColumn}
+                                    className={`w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 focus:ring-2 ${
+                                      !canEditThisColumn 
+                                        ? 'bg-gray-100 cursor-not-allowed opacity-50' 
+                                        : 'bg-gray-100'
+                                    }`}
+                                  />
+                                </td>
+                              );
+                            })}
                             {/* Select All helper */}
                             <td className="px-2 py-2 text-center">
-                              <button
-                                onClick={() => toggleAllParticipants(index)}
-                                className="text-indigo-600 hover:text-indigo-800 text-xs font-medium"
-                              >
-                                {itemAssignments[index]?.length === onlineParticipants.length ? 'Deselect All' : 'Select All'}
-                              </button>
+                              {(() => {
+                                const isRoomCreator = currentRoom?.createdBy === currentUserId;
+                                return (
+                                  <button
+                                    onClick={() => toggleAllParticipants(index)}
+                                    disabled={!isRoomCreator}
+                                    className={`text-xs font-medium ${
+                                      isRoomCreator
+                                        ? 'text-indigo-600 hover:text-indigo-800 cursor-pointer'
+                                        : 'text-gray-400 cursor-not-allowed'
+                                    }`}
+                                    title={!isRoomCreator ? 'Only room creator can assign all participants' : ''}
+                                  >
+                                    {itemAssignments[index]?.length === billParticipants.length ? 'Deselect All' : 'Select All'}
+                                  </button>
+                                );
+                              })()}
                             </td>
                           </tr>
                         ))}
@@ -781,15 +943,15 @@ export default function MessageList({ messages }: MessageListProps) {
               )}
 
               {/* User Split Summary */}
-              {onlineParticipants.length > 0 && Object.keys(itemAssignments).length > 0 && (
+              {billParticipants.length > 0 && Object.keys(itemAssignments).length > 0 && (
                 <div className="mb-4">
                   <h4 className="font-medium text-gray-900 mb-3">👥 Split Summary</h4>
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {onlineParticipants.map(participant => {
+                      {billParticipants.map(participant => {
                         const userTotal = calculateUserTotals()[participant.userId] || 0;
                         return (
-                          <div key={participant.userId} className="flex items-center justify-between bg-white rounded-md p-3 border border-gray-200">
+                          <div key={participant.userId} className="flex items-center justify-between bg-white rounded-lg p-3 shadow-sm">
                             <div className="flex items-center space-x-2">
                               {participant.imageUrl ? (
                                 <img
@@ -805,33 +967,85 @@ export default function MessageList({ messages }: MessageListProps) {
                                 </div>
                               )}
                               <span className="text-sm font-medium text-gray-900">
-                                {participant.firstName} {participant.lastName}
+                                {participant.firstName}
                               </span>
                             </div>
-                            <span className={`text-sm font-bold ${userTotal > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                            <span className="text-sm font-semibold text-blue-600">
                               ${userTotal.toFixed(2)}
                             </span>
                           </div>
                         );
                       })}
                     </div>
-                    
-                    {/* Total validation */}
-                    <div className="mt-4 pt-3 border-t border-blue-200">
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-blue-700 font-medium">Total Assigned:</span>
-                        <span className="font-bold text-blue-800">
-                          ${Object.values(calculateUserTotals()).reduce((sum, amount) => sum + amount, 0).toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center text-sm mt-1">
-                        <span className="text-blue-700 font-medium">Bill Total:</span>
-                        <span className="font-bold text-blue-800">
-                          ${billData.total_amount?.toFixed(2)}
-                        </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Bill Participants Management - Only visible to room creator */}
+              {currentRoom?.createdBy === currentUserId && (
+                <div className="mb-4">
+                  <h4 className="font-medium text-gray-900 mb-3">👥 Manage Bill Participants</h4>
+                  
+                  {/* Current bill participants */}
+                  {billParticipants.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-sm text-gray-600 mb-2">Current participants in bill:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {billParticipants.map(participant => (
+                          <div key={participant.userId} className="flex items-center bg-indigo-100 rounded-full pl-2 pr-1 py-1">
+                            <span className="text-sm text-indigo-800 mr-2">{participant.firstName}</span>
+                            <button
+                              onClick={() => removeParticipantFromBill(participant.userId)}
+                              className="text-indigo-600 hover:text-indigo-800 p-1"
+                              title="Remove from bill"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  </div>
+                  )}
+                  
+                  {/* Add participants */}
+                  {availableParticipants.length > 0 && (
+                    <div>
+                      <p className="text-sm text-gray-600 mb-2">Add participants to bill:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {availableParticipants.map(participant => (
+                          <button
+                            key={participant.userId}
+                            onClick={() => addParticipantToBill(participant)}
+                            className="flex items-center bg-gray-100 hover:bg-gray-200 rounded-full pl-2 pr-3 py-1 transition-colors"
+                          >
+                            {participant.imageUrl ? (
+                              <img
+                                src={participant.imageUrl}
+                                alt={participant.firstName}
+                                className="w-5 h-5 rounded-full object-cover mr-2"
+                              />
+                            ) : (
+                              <div className="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center mr-2">
+                                <span className="text-xs font-medium text-indigo-600">
+                                  {participant.firstName.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                            )}
+                            <span className="text-sm text-gray-700">{participant.firstName}</span>
+                            <span className={`ml-1 text-xs ${participant.isOnline ? 'text-green-600' : 'text-gray-400'}`}>
+                              {participant.isOnline ? '●' : '○'}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {availableParticipants.length === 0 && billParticipants.length === 0 && (
+                    <p className="text-sm text-gray-500 italic">No participants available. Users will appear here when they join the room.</p>
+                  )}
                 </div>
               )}
 
