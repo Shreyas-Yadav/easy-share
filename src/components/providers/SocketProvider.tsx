@@ -215,6 +215,13 @@ export function SocketProvider({ children }: SocketProviderProps) {
         // User event handlers
         newSocket.on('user:joined', (participant) => {
           console.log('User joined:', participant);
+          
+          // Show toast notification for user join
+          roomToast.info(`${participant.firstName} ${participant.lastName} joined the room`, {
+            position: 'top-right',
+            autoClose: 3000,
+          });
+          
           setParticipants(prev => {
             const exists = prev.find(p => p.userId === participant.userId);
             if (exists) {
@@ -224,10 +231,17 @@ export function SocketProvider({ children }: SocketProviderProps) {
           });
         });
 
-        newSocket.on('user:left', (userId) => {
-          console.log('User left:', userId);
+        newSocket.on('user:left', (userData) => {
+          console.log('User left:', userData);
+          
+          // Show toast notification for user leave
+          roomToast.info(`${userData.userName} left the room`, {
+            position: 'top-right',
+            autoClose: 3000,
+          });
+          
           setParticipants(prev => 
-            prev.map(p => p.userId === userId ? { ...p, isOnline: false } : p)
+            prev.map(p => p.userId === userData.userId ? { ...p, isOnline: false } : p)
           );
         });
 

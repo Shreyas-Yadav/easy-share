@@ -557,9 +557,9 @@ export default function MessageList({ messages }: MessageListProps) {
     if (!previousMessage) return true;
     if (currentMessage.userId !== previousMessage.userId) return true;
     
-    // Show user info if messages are more than 5 minutes apart
+    // Show user info if messages are more than 1 minute apart
     const timeDiff = new Date(currentMessage.timestamp).getTime() - new Date(previousMessage.timestamp).getTime();
-    return timeDiff > 5 * 60 * 1000; // 5 minutes
+    return timeDiff > 1 * 60 * 1000; // 1 minute
   };
 
   if (messages.length === 0) {
@@ -576,8 +576,10 @@ export default function MessageList({ messages }: MessageListProps) {
 
   return (
     <div className="h-full overflow-y-auto p-4 pb-4 space-y-1">
-      {messages.map((message, index) => {
-        const previousMessage = index > 0 ? messages[index - 1] : undefined;
+      {messages
+        .filter(message => !(message.type === 'system' && (message.content?.includes('joined the room') || message.content?.includes('left the room'))))
+        .map((message, index) => {
+        const previousMessage = index > 0 ? messages.filter(m => !(m.type === 'system' && (m.content?.includes('joined the room') || m.content?.includes('left the room'))))[index - 1] : undefined;
         const showDateSeparator = shouldShowDateSeparator(message, previousMessage);
         const showUserInfo = shouldShowUserInfo(message, previousMessage);
         const isOwnMessage = message.userId === currentUserId;
@@ -640,16 +642,13 @@ export default function MessageList({ messages }: MessageListProps) {
                         <span className="text-sm font-medium text-gray-700">
                           {message.userName}
                         </span>
-                        <span className="text-xs text-gray-500">
-                          {formatTime(message.timestamp)}
-                        </span>
                       </div>
                     )}
 
-                    <div className={`inline-block rounded-lg max-w-full ${
+                    <div className={`inline-block rounded-lg max-w-full relative ${
                       message.type === 'image' 
                         ? 'p-1' 
-                        : `px-3 py-2 ${isOwnMessage ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-800'}`
+                        : `px-3 py-2 pb-6 ${isOwnMessage ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-800'}`
                     }`}>
                       {message.type === 'image' ? (
                         <div className="space-y-2">
@@ -688,6 +687,14 @@ export default function MessageList({ messages }: MessageListProps) {
                             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                             {(message as any).imageName}
                           </div>
+                          {/* Timestamp for images */}
+                          <div className="absolute bottom-1 right-2">
+                            <span className={`text-xs ${
+                              isOwnMessage ? 'text-indigo-200' : 'text-gray-500'
+                            }`}>
+                              {formatTime(message.timestamp)}
+                            </span>
+                          </div>
                         </div>
                       ) : (
                         <>
@@ -699,18 +706,19 @@ export default function MessageList({ messages }: MessageListProps) {
                               (edited)
                             </span>
                           )}
+                          {/* Timestamp inside message bubble */}
+                          <div className="absolute bottom-1 right-2">
+                            <span className={`text-xs ${
+                              isOwnMessage ? 'text-indigo-200' : 'text-gray-500'
+                            }`}>
+                              {formatTime(message.timestamp)}
+                            </span>
+                          </div>
                         </>
                       )}
                     </div>
 
-                    {/* Timestamp for own messages or when user info is not shown */}
-                    {(isOwnMessage || !showUserInfo) && (
-                      <div className={`mt-1 ${isOwnMessage ? 'text-right' : 'text-left'}`}>
-                        <span className="text-xs text-gray-400">
-                          {formatTime(message.timestamp)}
-                        </span>
-                      </div>
-                    )}
+
                   </div>
 
                   {/* Own message avatar placeholder */}

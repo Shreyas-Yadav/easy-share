@@ -236,14 +236,6 @@ export async function GET() {
           // Notify other users
           socket.to(room.id).emit('user:joined', joinedParticipant);
 
-          // Send system message
-          const systemMessage = await messageService.sendSystemMessage(
-            room.id,
-            `${userData.userName} joined the room`,
-            'join'
-          );
-          io.to(room.id).emit('message:new', systemMessage);
-
           console.log(`User ${userData.userName} joined room ${room.name}`);
         } catch (error) {
           // Only log unexpected errors, not business logic errors
@@ -273,14 +265,6 @@ export async function GET() {
 
           // Notify other users
           socket.to(roomId).emit('user:left', userData.userId);
-
-          // Send system message
-          const systemMessage = await messageService.sendSystemMessage(
-            roomId,
-            `${userData.userName} left the room`,
-            'leave'
-          );
-          socket.to(roomId).emit('message:new', systemMessage);
 
           console.log(`User ${userData.userName} left room ${roomId}`);
         } catch (error) {
