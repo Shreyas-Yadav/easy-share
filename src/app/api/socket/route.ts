@@ -18,6 +18,7 @@ const serviceFactory = ServiceFactory.getInstance(repositoryFactory);
 const roomService = serviceFactory.createRoomService();
 const messageService = serviceFactory.createMessageService();
 const userSessionService = serviceFactory.createUserSessionService();
+const billService = serviceFactory.createBillService();
 
 let io: SocketIOServer<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 
@@ -142,6 +143,18 @@ export async function GET() {
           await socket.join(room.id);
           await userSessionService.updateUserRoom(userData.userId, room.id);
 
+          // Small delay to ensure session is properly updated
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+          // Verify the room update was successful
+          const updatedUserData = await userSessionService.getUserBySocketId(socket.id);
+          console.log('Room creator session after room creation:', {
+            userId: updatedUserData?.userId,
+            userName: updatedUserData?.userName,
+            roomId: updatedUserData?.roomId,
+            expectedRoomId: room.id
+          });
+
           // Get updated room with participant
           const updatedRoom = await roomService.findRoomById(room.id);
 
@@ -195,6 +208,18 @@ export async function GET() {
           // Join the socket room
           await socket.join(room.id);
           await userSessionService.updateUserRoom(userData.userId, room.id);
+
+          // Small delay to ensure session is properly updated
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+          // Verify the room update was successful
+          const updatedUserData = await userSessionService.getUserBySocketId(socket.id);
+          console.log('Room joiner session after room join:', {
+            userId: updatedUserData?.userId,
+            userName: updatedUserData?.userName,
+            roomId: updatedUserData?.roomId,
+            expectedRoomId: room.id
+          });
 
           // Notify user of successful join with recent messages
           socket.emit('room:joined', { 
@@ -382,6 +407,99 @@ export async function GET() {
           console.log('SUCCESS: Image message broadcasted to room', data.roomId);
         } catch (error) {
           console.error('Error broadcasting image message:', error);
+        }
+      });
+
+      // Bill extraction
+      socket.on('bill:extract', async (data) => {
+        console.log('=== BILL EXTRACTION REQUEST ===');
+        console.log('Bill extraction request:', {
+          roomId: data.roomId,
+          imageUrl: data.imageUrl,
+          imageName: data.imageName
+        });
+
+        try {
+          const userData = await userSessionService.getUserBySocketId(socket.id);
+          if (!userData || userData.roomId !== data.roomId) {
+            console.error('User validation failed for bill extraction');
+            return;
+          }
+
+          console.log('Processing bill extraction for user:', userData.userName);
+
+          // Extract bill data and save to database using BillService
+          const billExtraction = await billService.extractAndSaveBill({
+            roomId: data.roomId,
+            userId: userData.userId,
+            userName: userData.userName,
+            userImage: userData.userImage,
+            imageUrl: data.imageUrl,
+            imageName: data.imageName
+          });
+
+          console.log('Bill extraction completed successfully');
+          console.log('Bill ID:', billExtraction.id);
+          console.log('Items found:', billExtraction.billData.items.length);
+
+          // Broadcast the bill extraction to all users in the room
+          io.to(data.roomId).emit('bill:extracted', billExtraction);
+
+          console.log('SUCCESS: Bill extraction broadcasted to room', data.roomId);
+        } catch (error) {
+          console.error('=== BILL EXTRACTION ERROR ===');
+          console.error('Error details:', error);
+          socket.emit('room:error', 'Bill extraction failed');
+        }
+      });
+
+      // Bill assignment updates
+      socket.on('bill:update', async (data) => {
+        console.log('=== BILL ASSIGNMENT UPDATE REQUEST ===');
+        console.log('Bill assignment update:', {
+          billId: data.billId,
+          itemAssignments: data.itemAssignments
+        });
+
+        try {
+          const userData = await userSessionService.getUserBySocketId(socket.id);
+          console.log('User data for bill update:', {
+            hasUserData: !!userData,
+            userId: userData?.userId,
+            userName: userData?.userName,
+            userRoomId: userData?.roomId,
+            socketId: socket.id
+          });
+
+          if (!userData) {
+            console.error('User validation failed for bill update');
+            return;
+          }
+
+          console.log('Processing bill assignment update for user:', userData.userName);
+
+          // Update bill assignments using BillService
+          const updatedBill = await billService.updateBillAssignments(
+            data.billId,
+            data.itemAssignments,
+            userData.userId
+          );
+
+          console.log('Bill assignment update completed successfully');
+
+          // Broadcast the updated bill to all users in the room
+          if (userData.roomId) {
+            console.log('Broadcasting bill update to room:', userData.roomId);
+            io.to(userData.roomId).emit('bill:updated', updatedBill);
+            console.log('SUCCESS: Bill update broadcasted to room', userData.roomId);
+          } else {
+            console.error('User not in a room, cannot broadcast bill update');
+            console.error('User data:', userData);
+          }
+        } catch (error) {
+          console.error('=== BILL UPDATE ERROR ===');
+          console.error('Error details:', error);
+          socket.emit('room:error', 'Bill update failed');
         }
       });
 

@@ -95,7 +95,7 @@ export class SocketToastService extends ToastService {
   }
 
   connectionFailed(): Id {
-    return this.error('Failed to connect to server. Please refresh the page.', { autoClose: false });
+    return this.error('Failed to connect to server. Please refresh the page.', { autoClose: 1000 });
   }
 }
 
@@ -188,12 +188,36 @@ export class UserToastService extends ToastService {
   }
 }
 
+export class BillToastService extends ToastService {
+  // Bill extraction related notifications
+  billExtractionStarted(): Id {
+    return this.loading('Extracting bill information...');
+  }
+
+  billExtractionSuccess(): Id {
+    return this.success('Bill extracted successfully!');
+  }
+
+  billExtractionFailed(error?: string): Id {
+    return this.error(error || 'Failed to extract bill. Please try again.');
+  }
+
+  billUpdated(): Id {
+    return this.success('Bill assignments updated');
+  }
+
+  billUpdateFailed(): Id {
+    return this.error('Failed to update bill assignments');
+  }
+}
+
 // Factory pattern for creating toast services (Dependency Inversion Principle)
 export class ToastServiceFactory {
   private static socketToastService: SocketToastService;
   private static roomToastService: RoomToastService;
   private static messageToastService: MessageToastService;
   private static userToastService: UserToastService;
+  private static billToastService: BillToastService;
   private static generalToastService: ToastService;
 
   static getSocketToastService(): SocketToastService {
@@ -222,6 +246,13 @@ export class ToastServiceFactory {
       this.userToastService = new UserToastService();
     }
     return this.userToastService;
+  }
+
+  static getBillToastService(): BillToastService {
+    if (!this.billToastService) {
+      this.billToastService = new BillToastService();
+    }
+    return this.billToastService;
   }
 
   static getGeneralToastService(): ToastService {

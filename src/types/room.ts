@@ -1,4 +1,5 @@
 import { Socket } from 'socket.io-client';
+import type { BillExtraction } from './models';
 
 export interface Room {
   id: string;
@@ -80,6 +81,10 @@ export interface ServerToClientEvents {
   
   // Image events (only image-related events)
   'image:uploaded': (message: ImageMessage) => void;
+  
+  // Bill extraction events
+  'bill:extracted': (billExtraction: BillExtraction) => void;
+  'bill:updated': (billExtraction: BillExtraction) => void;
 }
 
 export interface ClientToServerEvents {
@@ -104,6 +109,10 @@ export interface ClientToServerEvents {
   
   // Image events (HTTP upload + socket broadcast)
   'image:uploaded': (data: { roomId: string; message: ImageMessage }) => void;
+  
+  // Bill extraction events
+  'bill:extract': (data: { roomId: string; imageUrl: string; imageName: string }) => void;
+  'bill:update': (data: { billId: string; itemAssignments: Record<number, string[]> }) => void;
 }
 
 export interface InterServerEvents {

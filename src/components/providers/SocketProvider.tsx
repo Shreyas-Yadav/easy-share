@@ -193,6 +193,25 @@ export function SocketProvider({ children }: SocketProviderProps) {
           setMessages(prev => [...prev, message]);
         });
 
+        // Bill extraction event handlers
+        newSocket.on('bill:extracted', (billExtraction) => {
+          console.log('Bill extracted:', billExtraction);
+          // This event will be handled by the MessageList component
+          // We'll emit a custom event that MessageList can listen to
+          window.dispatchEvent(new CustomEvent('bill:extracted', { 
+            detail: billExtraction 
+          }));
+        });
+
+        newSocket.on('bill:updated', (billExtraction) => {
+          console.log('Bill updated:', billExtraction);
+          // This event will be handled by the MessageList component
+          // We'll emit a custom event that MessageList can listen to
+          window.dispatchEvent(new CustomEvent('bill:updated', { 
+            detail: billExtraction 
+          }));
+        });
+
         // User event handlers
         newSocket.on('user:joined', (participant) => {
           console.log('User joined:', participant);

@@ -7,14 +7,16 @@ import type { BillExtraction } from '../../types/models';
 import { useSocket } from '../providers/SocketProvider';
 import ContextMenu from '../ui/ContextMenu';
 import type { ContextMenuItem } from '../ui/ContextMenu';
+import { ToastServiceFactory } from '../../services/ToastService';
 
 interface MessageListProps {
   messages: Message[];
 }
 
 export default function MessageList({ messages }: MessageListProps) {
-  const { currentUserId, participants, currentRoom } = useSocket();
+  const { currentUserId, participants, currentRoom, socket } = useSocket();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const billToast = ToastServiceFactory.getBillToastService();
   
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -68,40 +70,97 @@ export default function MessageList({ messages }: MessageListProps) {
     loadRoomBills();
   }, [currentRoom?.id]);
 
+  // Listen for real-time bill extraction events
+  useEffect(() => {
+    const handleBillExtracted = (event: CustomEvent) => {
+      console.log('Bill extracted event received:', event.detail);
+      const billExtraction = event.detail;
+      
+      // Add to persisted bills list
+      setPersistedBills(prev => [billExtraction, ...prev]);
+      
+      // If this is the current user's extraction, set it for display
+      if (billExtraction.userId === currentUserId) {
+        setBillData(billExtraction.billData);
+        setCurrentBillId(billExtraction.id);
+        setItemAssignments(billExtraction.itemAssignments || {});
+        setIsExtracting(false);
+        billToast.billExtractionSuccess();
+      }
+    };
+
+    const handleBillUpdated = (event: CustomEvent) => {
+      console.log('Bill updated event received:', event.detail);
+      const billExtraction = event.detail;
+      
+      console.log('Bill update details:', {
+        billId: billExtraction.id,
+        userId: billExtraction.userId,
+        currentUserId,
+        currentBillId,
+        isCurrentUser: billExtraction.userId === currentUserId,
+        isCurrentBill: currentBillId === billExtraction.id
+      });
+      
+      // Update the persisted bills list
+      setPersistedBills(prev => 
+        prev.map(bill => 
+          bill.id === billExtraction.id 
+            ? billExtraction
+            : bill
+        )
+      );
+      
+      // If this is the currently displayed bill, update it
+      if (currentBillId === billExtraction.id) {
+        console.log('Updating current bill assignments');
+        setItemAssignments(billExtraction.itemAssignments || {});
+      } else {
+        console.log('Bill update received but not for currently displayed bill');
+      }
+      
+      // Removed toast notification for assignment updates as requested
+    };
+
+    // Add event listeners
+    window.addEventListener('bill:extracted', handleBillExtracted as EventListener);
+    window.addEventListener('bill:updated', handleBillUpdated as EventListener);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('bill:extracted', handleBillExtracted as EventListener);
+      window.removeEventListener('bill:updated', handleBillUpdated as EventListener);
+    };
+  }, [currentUserId, currentBillId]);
+
   // Save bill assignments to database
   const saveBillAssignments = async (billId: string, assignments: Record<number, string[]>) => {
-    if (!currentUserId) return;
+    if (!currentUserId || !socket) {
+      console.log('Cannot save bill assignments:', { 
+        hasCurrentUserId: !!currentUserId, 
+        hasSocket: !!socket 
+      });
+      return;
+    }
     
     try {
-      console.log('Saving bill assignments:', { billId, assignments });
-      const response = await fetch('/api/room-bills', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          billId,
-          itemAssignments: assignments,
-          userId: currentUserId,
-        }),
+      console.log('Saving bill assignments via socket:', { 
+        billId, 
+        assignments,
+        currentUserId,
+        socketConnected: socket.connected
+      });
+      
+      // Use socket event for real-time bill assignment updates
+      socket.emit('bill:update', {
+        billId,
+        itemAssignments: assignments
       });
 
-      const result = await response.json();
-      if (!response.ok) {
-        console.error('Failed to save bill assignments:', result.error);
-      } else {
-        console.log('Bill assignments saved successfully');
-        // Update the persisted bills list
-        setPersistedBills(prev => 
-          prev.map(bill => 
-            bill.id === billId 
-              ? { ...bill, itemAssignments: assignments, updatedAt: new Date() }
-              : bill
-          )
-        );
-      }
+      console.log('Bill assignment update sent via socket');
     } catch (error) {
       console.error('Error saving bill assignments:', error);
+      billToast.billUpdateFailed();
     }
   };
 
@@ -197,62 +256,32 @@ export default function MessageList({ messages }: MessageListProps) {
     // Close context menu first
     closeContextMenu();
     
-    // Set extracting state
+    // Set extracting state and show loading toast
     setIsExtracting(true);
     setBillData(null);
+    billToast.billExtractionStarted();
 
     try {
-      console.log('📡 Making API request to /api/extract-bill');
+      console.log('📡 Emitting bill extraction via socket');
       
-      // Get current user info from participants
-      const currentUser = participants.find(p => p.userId === currentUserId);
-      
-      const response = await fetch('/api/extract-bill', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      // Use socket event for real-time bill extraction
+      if (socket && currentRoom) {
+        socket.emit('bill:extract', {
+          roomId: currentRoom.id,
           imageUrl: contextMenu.imageUrl,
-          imageName: contextMenu.imageName,
-          userId: currentUserId,
-          userName: currentUser ? `${currentUser.firstName} ${currentUser.lastName}`.trim() : 'Unknown User',
-          userImage: currentUser?.imageUrl || '',
-          roomId: currentRoom?.id,
-        }),
-      });
-
-      console.log('📡 API response status:', response.status);
-      const result = await response.json();
-      console.log('📡 API response data:', result);
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to extract bill');
+          imageName: contextMenu.imageName
+        });
+      } else {
+        throw new Error('Socket not connected or room not available');
       }
 
-      console.log('✅ Bill extraction successful and saved to database');
-      
-      // The result.data now contains the full BillExtraction object
-      const billExtraction = result.data;
-      
-      // Set the bill data for display (using billData format for UI compatibility)
-      setBillData(billExtraction.billData);
-      
-      // Set the current bill ID for future assignment saves
-      setCurrentBillId(billExtraction.id);
-      
-      // Set existing assignments if any
-      setItemAssignments(billExtraction.itemAssignments || {});
-      
-      // Add to persisted bills list
-      setPersistedBills(prev => [billExtraction, ...prev]);
-      
-      setIsExtracting(false);
+      console.log('✅ Bill extraction request sent via socket');
 
     } catch (error) {
       console.error('❌ Bill extraction error:', error);
       setIsExtracting(false);
       setBillData({ error: error instanceof Error ? error.message : 'Unknown error' });
+      billToast.billExtractionFailed(error instanceof Error ? error.message : 'Unknown error');
     }
   };
 
