@@ -54,9 +54,17 @@ export function SocketProvider({ children }: SocketProviderProps) {
     fetch('/api/socket')
       .then(() => {
         // Create socket connection
-        const newSocket = io(process.env.NODE_ENV === 'production' 
+        const socketUrl = process.env.NODE_ENV === 'production'
           ? process.env.NEXT_PUBLIC_SOCKET_URL || ''
-          : 'http://localhost:3001', {
+          : 'http://localhost:3001';
+        
+        console.log('=== SOCKET CONNECTION DEBUG ===');
+        console.log('Environment:', process.env.NODE_ENV);
+        console.log('Socket URL:', socketUrl);
+        console.log('NEXT_PUBLIC_SOCKET_URL:', process.env.NEXT_PUBLIC_SOCKET_URL);
+        console.log('Attempting to connect to:', socketUrl);
+        
+        const newSocket = io(socketUrl, {
           transports: ['polling', 'websocket'],
           autoConnect: true,
         });
