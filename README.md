@@ -99,10 +99,6 @@ EasyShare is built with modern web technologies and features:
 2. **Install dependencies**
    ```bash
    npm install
-   # or
-   yarn install
-   # or
-   pnpm install
    ```
 
 3. **Environment Setup**
@@ -112,6 +108,10 @@ EasyShare is built with modern web technologies and features:
    # Clerk Authentication
    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
    CLERK_SECRET_KEY=your_clerk_secret_key
+
+   NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+   NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/
+   NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/
    
    # Redis Database
    UPSTASH_REDIS_REST_URL=your_redis_url
@@ -126,16 +126,12 @@ EasyShare is built with modern web technologies and features:
    FIREBASE_CLIENT_EMAIL=your_firebase_client_email
    
    # OpenAI API
-   OPENAI_API_KEY=your_openai_api_key
+   OPENROUTER_API_KEY=your_openai_api_key
    ```
 
 4. **Run the development server**
    ```bash
    npm run dev
-   # or
-   yarn dev
-   # or
-   pnpm dev
    ```
 
 5. **Open your browser**
@@ -197,18 +193,6 @@ easy-share/
 - `POST /api/upload-image` - Upload images to Firebase Storage
 - `GET /api/room-bills` - Get bills for a specific room
 - `POST /api/socket` - Socket.IO connection endpoint
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Support
 
